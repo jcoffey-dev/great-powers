@@ -212,6 +212,64 @@ marching the Munich garrison there -- abandoning one centre to save another
 of identical value. And it never shoves at its own countryman, which has no
 strength at all and is two units wasting a turn on each other.
 
+### Making them able to win
+
+For a long time they could not, and the reason was worse than being weak:
+the board **froze**. By 1908 every centre count stopped changing, and a game
+left running to 1960 finished on the distribution it had reached in 1939. A
+game that cannot be won is not a hard game, it is a broken one. Thirty
+seeded games now play themselves out in `solo.test.ts`; where the leader
+used to finish on a mean of 7.8 centres and never once reach eighteen, it
+now averages 13.7 and solos in six games out of thirty, which is about the
+rate a table of decent human players manages.
+
+Five things were wrong, and every one of them is a rule somebody could have
+told you over a board.
+
+**A threat is two units of one power, not two neighbours.** Support comes
+from your own units or from a deal, so two enemies who have agreed nothing
+cannot combine. Counting any two neighbours put half of every army on
+garrison duty in a crowded position -- and the garrison was drawn from
+exactly the units that would otherwise have attacked. France sat with three
+units beside Kiel for five years and never took it, because all three were
+defending against a threat that did not exist.
+
+**Take what you can carry before what you merely want.** Sorting objectives
+by worth and spending units as you go sounds right and is not: the most
+valuable target is usually the one you cannot have, and it eats the units
+that could have taken the second most valuable.
+
+**March toward the guns.** Everything above asks what a unit can take *this*
+turn, and a board settles the moment the answer everywhere is nothing. A
+unit with nothing else to do now walks toward the best thing this power
+wants and cannot yet have -- worth, less a penalty for every year of
+walking, so an army does not set out across Europe for a centre somebody
+nearer will have taken first. It is the only part of this that thinks past
+the current turn.
+
+**Gather.** Units choosing objectives one at a time never gather anywhere:
+each picks the best thing it can see and sets off alone, and a defended
+centre needs two. A goal somebody is already walking toward is now worth
+more to the next unit than it was to the first. That single line was worth
+two centres a game to the leader.
+
+**And the one that mattered most: supporting somebody does not cost you the
+province.** Support was priced at the full value of the target, which made
+every request in the game refusable and every one of them refused -- a
+centre is worth a hundred, a working relationship at most eighty, and the
+arithmetic could not come out any other way. Two hundred and twenty-four
+approaches in one game, ninety-five of them for support, and not a single
+one accepted. The entire press had been reduced to agreeing where *not* to
+go. But you only give up the province if you could have taken it yourself,
+and usually you could not -- which is precisely why they are asking. The
+rest of the time what it costs you is one unit's turn.
+
+Powers also lean. Seven minds reasoning identically play the same game every
+time, so each carries a seed that decides which way it goes when two things
+are worth the same. It is not randomness: the same power asked twice in the
+same game gives the same answer, and a seed replays a game exactly. It only
+stops seven identical minds playing seven identical games.
+
 The price of breaking a promise is **how far this power trusts the partner**,
 not how far the partner trusts it. Pricing it the other way round gives a
 power that has been lied to four times a high cost of retaliating, because it
@@ -274,20 +332,20 @@ answer on the merits, and what they agree binds that turn and is judged at
 the end of it. Approaches to the human are handed back rather than answered
 for them.
 
-**The game is called at the end of 1912.** Diplomacy has no clock of its own:
-it ends on eighteen centres, or when the players agree to stop -- and
-agreeing to stop is a conversation seven computer powers are never going to
-have. Left alone they reach a standoff and hold it, which is what a table of
-equally cautious players does and is why real games are called.
+**The game is called at the end of 1920.** Diplomacy has no clock of its
+own: it ends on eighteen centres, or when the players agree to stop. There
+is a vote for stopping (see below) and a power in front will never take it,
+which is correct and means somebody has to actually win.
 
-So: eighteen centres wins outright, and if nobody has them by the end of 1912
-the survivors draw. Twelve years is a long evening and a real tournament
-length, and **the draw is a proper ending here rather than a failure to
-finish** -- it is the commonest way this game actually ends.
+Twenty years is set from measurement rather than taste. Solos land between
+1915 and 1920 in these games; calling it at 1912, as this did, cut a fifth
+of them off mid-conquest and turned a game somebody was winning into a draw.
+Calling it much later adds years in which nothing new happens.
 
-Worth saying plainly: seven bots left alone draw. They take centres off each
-other now, which they could not do at all before, but none of them breaks
-away to a solo. Beating six of them is the game.
+So: eighteen centres wins outright, and if nobody has them by the end of
+1920 the survivors draw. **The draw is a proper ending here rather than a
+failure to finish** -- it is still the commonest way this game ends, as it
+is at a real table.
 
 ## The other two phases
 

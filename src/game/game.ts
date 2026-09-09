@@ -58,7 +58,7 @@ import { buildsSounded, movesSounded, retreatsSounded, type Cue } from './sound'
  * length, and a draw is a proper ending here rather than a failure to finish
  * -- it is the commonest way this game actually ends.
  */
-export const LAST_YEAR = 1912
+export const LAST_YEAR = 1920
 
 export type Season = 'spring' | 'autumn'
 export type Phase = 'orders' | 'retreats' | 'builds' | 'over'
@@ -87,6 +87,8 @@ export interface Game {
   drawn: Power[]
   /** Powers with no centres left. They stay on the list, at nothing. */
   out: Power[]
+  /** Replays the whole game, including which way each power leans. */
+  seed: number
   /**
    * Powers that gave up.
    *
@@ -103,7 +105,7 @@ export interface Game {
 /** Turns are counted from the opening, so a deal can name one. */
 export const turnOf = (g: Game): number => (g.year - 1901) * 2 + (g.season === 'autumn' ? 1 : 0)
 
-export function newGame(): Game {
+export function newGame(seed = 1): Game {
   const units: Unit[] = []
   for (const power of POWERS) {
     for (const at of OPENING[power].armies) units.push({ power, type: 'army', at })
@@ -124,6 +126,7 @@ export function newGame(): Game {
     drawn: [],
     out: [],
     resigned: [],
+    seed,
   }
 }
 
@@ -227,7 +230,12 @@ export function negotiate(g: Game, player: Power): { game: Game; asked: Overture
   // power that has given up makes none.
   for (const from of playing(g)) {
     if (from === player) continue
-    const mind: Mind = { power: from, ledger: g.ledger, agreements }
+    const mind: Mind = {
+      power: from,
+      ledger: g.ledger,
+      agreements,
+      seed: g.seed * 7 + POWERS.indexOf(from),
+    }
     for (const overture of propose(pos, mind, turn)) {
       const to = overture.proposal.to
       if (g.out.includes(to) || g.resigned.includes(to)) continue
@@ -250,7 +258,12 @@ export function botOrders(g: Game, player: Power): Map<Power, Order[]> {
   const out = new Map<Power, Order[]>()
   for (const power of playing(g)) {
     if (power === player) continue
-    const mind: Mind = { power, ledger: g.ledger, agreements: g.agreements }
+    const mind: Mind = {
+      power,
+      ledger: g.ledger,
+      agreements: g.agreements,
+      seed: g.seed * 7 + POWERS.indexOf(power),
+    }
     out.set(power, chooseOrders({ board: g.board, own: g.own }, mind, turnOf(g)).orders)
   }
   return out

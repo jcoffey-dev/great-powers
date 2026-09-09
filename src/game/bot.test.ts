@@ -121,10 +121,18 @@ describe('a bot with a promise to keep', () => {
    * open in front of it, and French units close enough to German centres to
    * matter. The only thing that changes between these cases is what France
    * has done with its word up to now.
+   *
+   * The French units are in Silesia and Tyrolia rather than Burgundy on
+   * purpose. Both lean on Munich, which is what these cases need, and
+   * neither can reach Belgium -- so Belgium is a province Germany can simply
+   * walk into, and the only thing standing between the Ruhr and it is the
+   * promise. With a French army in Burgundy, Belgium is contested, the bot
+   * quite correctly goes and takes an uncontested Holland instead, and the
+   * promise is never tested at all.
    */
   const position = () =>
     at(
-      [A('germany', 'ruh'), A('germany', 'mun'), A('france', 'bur'), A('france', 'sil')],
+      [A('germany', 'ruh'), A('germany', 'mun'), A('france', 'sil'), A('france', 'tyr')],
       [['mun', 'germany'], ['ber', 'germany'], ['kie', 'germany']],
     )
 

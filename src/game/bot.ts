@@ -1,5 +1,5 @@
 import { desire, standing, threatened, type Position } from './evaluate'
-import { PROVINCES, base, type Power } from './map'
+import { ARMY, FLEET, PROVINCES, base, type Power } from './map'
 import { canStep, validate, type Order, type Unit } from './orders'
 import { trust, type Agreement, type Ledger, type Proposal, type Reply } from './press'
 
@@ -21,11 +21,24 @@ const FRIEND = 55
 /** And what it is worth per centre of yours the partner is standing next to. */
 const NEIGHBOUR = 25
 
+/** What one unit spending its turn on somebody else's business is worth. */
+const A_TURN = 30
+
 export interface Mind {
   power: Power
   ledger: Ledger
   /** Deals binding this turn. */
   agreements: readonly Agreement[]
+  /**
+   * Temperament: which way this power leans when two things are worth the
+   * same.
+   *
+   * Seven powers reasoning identically play the same game every time, and
+   * every game is the same game -- which is dull to watch and, worse,
+   * unbeatable in the same way twice. This breaks the ties, and it breaks
+   * them consistently, so a seed still replays a whole game exactly.
+   */
+  seed?: number
 }
 
 export interface Choice {
@@ -56,6 +69,7 @@ export function chooseOrders(pos: Position, mind: Mind, turn: number): Choice {
     orders.set(at, { type: 'hold', at, power: mind.power })
     spent.add(at)
     reasoning.push(`${at} stays where it is`)
+
   }
 
   /*
@@ -72,43 +86,95 @@ export function chooseOrders(pos: Position, mind: Mind, turn: number): Choice {
    * cannot take is not worth one unit, and the unit is worth more somewhere
    * it can actually arrive.
    */
+  // No seed, no leaning: a caller that has not asked for a temperament gets
+  // the plain alphabetical tie-break it has always had.
+  const lean = mind.seed ? (id: string) => jitter(id, mind.seed!) : () => 0
   const targets = Object.keys(PROVINCES)
     .map((id) => ({ id, worth: desire(pos, mind.power, id) }))
     .filter((t) => t.worth > 0)
-    .sort((a, b) => b.worth - a.worth || a.id.localeCompare(b.id))
+    .sort((a, b) => b.worth - a.worth || lean(a.id) - lean(b.id) || a.id.localeCompare(b.id))
 
-  for (const target of targets) {
-    if (pos.board.get(target.id)?.power === mind.power) continue
+  /*
+   * Take objectives, not moves -- and take the ones you can carry before the
+   * ones you merely want.
+   *
+   * Sorting by worth and spending units as you go sounds right and is not:
+   * the most valuable target is usually the one you cannot have, and it eats
+   * the units that could have taken the second most valuable. France sat
+   * with three units beside Kiel for five years, sending one of them at
+   * Marseilles every spring to bounce off Germany, because Marseilles was
+   * worth twenty-eight more.
+   *
+   * A target settled in the first pass is struck off. Leaving it in was
+   * worth several centres a game to whoever was standing next to France:
+   * the second pass reached it again, sent a second unit at the same
+   * province, and the two bounced off each other.
+   */
+  const done = new Set<string>()
+
+  const commit = (target: { id: string; worth: number }, only: 'able' | 'hopeful') => {
+    if (done.has(target.id)) return
+    if (pos.board.get(target.id)?.power === mind.power) return
 
     const able = mine
       .filter(([at]) => !spent.has(at))
       .filter(([, u]) => canReach(u, target.id))
       .map(([at, u]) => ({ at, to: aim(u, target.id) }))
-    if (able.length === 0) continue
+    if (able.length === 0) return
 
     const needed = strengthNeeded(pos, mind.power, target.id)
 
     /*
-     * Not enough for the job. Walking at an empty province anyway is still
-     * worth doing -- the worst that happens is a bounce, and the province
-     * might be free -- but throwing one unit at a garrison is a unit thrown
-     * away, and that one waits for help instead.
+     * Support somebody has promised for this move counts toward the price.
+     *
+     * Without this the whole press is decoration: a power asks Italy to help
+     * it into Trieste, Italy agrees, and then it decides it cannot afford
+     * Trieste because it only has one unit of its own beside it. Every deal
+     * struck was honoured and none was ever used.
      */
-    if (able.length < needed) {
-      if (pos.board.get(base(target.id))) continue
+    const promised = mind.agreements.filter(
+      (a) =>
+        a.turn === turn &&
+        a.deal.kind === 'support' &&
+        a.deal.mover === mind.power &&
+        base(a.deal.to) === base(target.id) &&
+        able.some((u) => base(u.at) === base((a.deal as { from: string }).from)),
+    )
+    const ownNeeded = Math.max(1, needed - promised.length)
+
+    if (able.length < ownNeeded) {
+      if (only === 'able') return
+      /*
+       * Not enough for the job. Walking at an empty province anyway is
+       * still worth doing -- the worst that happens is a bounce, and the
+       * province might be free -- but throwing one unit at a garrison is a
+       * unit thrown away, and that one waits for help instead.
+       */
+      if (pos.board.get(base(target.id))) return
       const lone = able[0]!
       orders.set(lone.at, { type: 'move', at: lone.at, to: lone.to, power: mind.power })
       spent.add(lone.at)
+      done.add(target.id)
       reasoning.push(`${lone.at} -> ${target.id} (worth ${target.worth}, and empty)`)
-      continue
+      return
     }
 
-    const [lead, ...rest] = able
+    // Lead from wherever somebody promised to support us from, if they did.
+    const pledged = promised[0]?.deal
+    const order = pledged && 'from' in pledged
+      ? [...able].sort((a, b) => (base(a.at) === base(pledged.from) ? -1 : 0) - (base(b.at) === base(pledged.from) ? -1 : 0))
+      : able
+    const [lead, ...rest] = order
     orders.set(lead!.at, { type: 'move', at: lead!.at, to: lead!.to, power: mind.power })
     spent.add(lead!.at)
-    reasoning.push(`${lead!.at} -> ${target.id} (worth ${target.worth}, needs ${needed})`)
+    done.add(target.id)
+    reasoning.push(
+      `${lead!.at} -> ${target.id} (worth ${target.worth}, needs ${needed}` +
+        (promised.length > 0 ? `, ${promised.length} promised` : '') +
+        ')',
+    )
 
-    for (const helper of rest.slice(0, needed - 1)) {
+    for (const helper of rest.slice(0, ownNeeded - 1)) {
       orders.set(helper.at, {
         type: 'support',
         at: helper.at,
@@ -121,6 +187,72 @@ export function chooseOrders(pos: Position, mind: Mind, turn: number): Choice {
     }
   }
 
+  for (const target of targets) commit(target, 'able')
+
+  const taken = new Set(
+    [...orders.values()].filter((o) => o.type === 'move').map((o) => base(o.to)),
+  )
+  /*
+   * Where this power is already gathering.
+   *
+   * Units that choose their objectives one at a time never gather anywhere:
+   * each picks the best thing it can see and sets off alone, and a defended
+   * centre needs two. So a goal somebody is already walking toward is worth
+   * more to the next unit than it was to the first. That is the whole of
+   * concentration, and it is the difference between an army and a crowd.
+   */
+  const gathering = new Map<string, number>()
+  for (const [at, unit] of mine) {
+    if (spent.has(at)) continue
+    // Not off a centre of ours that somebody is leaning on.
+    if (pos.own.get(base(at)) === mind.power && threatened(pos, mind.power, at)) continue
+
+    const routes = pathsFrom(unit)
+    let best: { to: string; goal: string; score: number } | null = null
+    for (const target of targets) {
+      if (pos.board.get(target.id)?.power === mind.power) continue
+      const route = routes.get(base(target.id))
+      if (!route || route.dist === 0) continue
+      if (taken.has(base(route.step))) continue
+      if (pos.board.get(base(route.step))?.power === mind.power) continue
+      /*
+       * Worth, less the years of walking. A centre four provinces away is
+       * not worth setting out for when there is one two provinces away, and
+       * marching the whole army at the single most valuable thing on the
+       * board -- which is what the first version of this did -- leaves every
+       * front but one empty.
+       */
+      const score =
+        target.worth - route.dist * MARCH + (gathering.get(target.id) ?? 0) * RALLY
+      if (!best || score > best.score) best = { to: route.step, goal: target.id, score }
+    }
+    if (!best || best.score <= 0) continue
+
+    orders.set(at, { type: 'move', at, to: best.to, power: mind.power })
+    spent.add(at)
+    taken.add(base(best.to))
+    gathering.set(best.goal, (gathering.get(best.goal) ?? 0) + 1)
+    reasoning.push(`${at} -> ${best.to}, on its way to ${best.goal}`)
+  }
+
+  for (const target of targets) commit(target, 'hopeful')
+
+
+  /*
+   * March toward the guns.
+   *
+   * Everything above asks what a unit can take *this* turn, and a board
+   * settles into a stalemate the moment the answer everywhere is nothing. A
+   * game left to run to 1960 froze on 9-8-4-4-4-2-1 for thirty years: every
+   * centre still worth taking needed three units, nobody could put three
+   * beside the same province, and no unit ever moved closer to anywhere
+   * because a step that takes nothing scores nothing.
+   *
+   * So a unit with nothing else to do walks toward the best thing this power
+   * wants and cannot yet have. It is how people play -- you spend two years
+   * getting an army to the front and then it is three against two -- and it
+   * is the only part of this that thinks past the current turn.
+   */
   // Anything still idle stands where it is.
   for (const [at] of mine) {
     if (!orders.has(at)) orders.set(at, { type: 'hold', at, power: mind.power })
@@ -164,17 +296,60 @@ function strengthNeeded(pos: Position, power: Power, target: string): number {
 
   /*
    * Two to beat a unit, and a third only when they have two friends close
-   * enough to prop it up. Assuming one nearby friend means a third unit
-   * needed was the difference between a bot that presses an advantage and one
-   * that never quite attacks: a neighbour almost always has *a* unit
-   * somewhere near, so almost every attack was priced at three, and three
-   * spare units next to the same province is a luxury nobody has.
+   * enough to prop it up.
+   *
+   * Asking instead whether they *will* support -- by putting their own
+   * threat test to their own centre -- is circular and reliably wrong: the
+   * two units we just massed are what makes the centre look threatened to
+   * them, so every attack we could afford at two priced itself at three the
+   * moment we could afford it. Counting their nearby friends is a worse
+   * estimate of the same thing and does not chase its own tail.
    */
   const friendsOfTheirs = rivals.filter(([, u]) => u.power === holding.power).length
   return friendsOfTheirs >= 2 ? 3 : 2
 }
 
 /** Can this unit reach that province, by any coast of it? */
+/** What a province loses in value for every year of marching to reach it. */
+const MARCH = 14
+
+/** And what it gains for every unit of ours already on its way there. */
+const RALLY = 90
+
+/**
+ * Where this unit can get to, how long it takes, and the first step.
+ *
+ * Breadth first over the unit's own graph, so an army counts land and a
+ * fleet counts water. Done once per unit rather than once per unit and
+ * target, because the answer to "which of these should I set out for" needs
+ * every distance at once.
+ */
+function pathsFrom(unit: Unit): Map<string, { dist: number; step: string }> {
+  const graph = unit.type === 'army' ? ARMY : FLEET
+  const here = unit.type === 'army' ? base(unit.at) : unit.at
+
+  const out = new Map<string, { dist: number; step: string }>()
+  out.set(base(here), { dist: 0, step: here })
+  const queue: string[] = [here]
+
+  while (queue.length > 0) {
+    const at = queue.shift()!
+    const from = out.get(base(at))!
+    for (const key of Object.keys(graph)) {
+      if (key !== at && base(key) !== base(at)) continue
+      for (const next of graph[key] ?? []) {
+        if (out.has(base(next))) continue
+        out.set(base(next), {
+          dist: from.dist + 1,
+          step: from.dist === 0 ? next : from.step,
+        })
+        queue.push(next)
+      }
+    }
+  }
+  return out
+}
+
 function canReach(unit: Unit, province: string): boolean {
   if (canStep(unit, base(province))) return true
   const coasts = PROVINCES[base(province)]?.coasts
@@ -350,11 +525,39 @@ export function consider(pos: Position, mind: Mind, proposal: Proposal, turn: nu
         ? { reply: 'accept', why: `${place(deal.to)} is worth having, and ${named(them)} may mean it.` }
         : { reply: 'refuse', why: `${place(deal.to)} is not worth owing ${named(them)} for.` }
     }
-    // They want my support. It costs me a unit's turn, and buys goodwill.
-    const cost = desire(pos, mind.power, deal.to)
+    /*
+     * They want my support, and the question is what it actually costs me.
+     *
+     * Pricing it at the whole value of the province made every support
+     * request in the game refusable and every one of them refused: a centre
+     * is worth a hundred, a working relationship at most eighty, so the
+     * arithmetic could not come out any other way. Two hundred approaches in
+     * a game, not one accepted, and the entire press reduced to agreeing
+     * where not to go.
+     *
+     * But supporting somebody into a province does not cost me the province.
+     * It costs me the province only if I could have taken it myself -- and
+     * usually I could not, which is precisely why they are asking. What it
+     * costs the rest of the time is one unit doing nothing else this turn.
+     */
+    if (pos.own.get(base(deal.to)) === mind.power) {
+      return { reply: 'refuse', why: `${place(deal.to)} is mine.` }
+    }
+    const holding = pos.board.get(base(deal.to))
+    const reach = [...pos.board.entries()].filter(
+      ([, u]) => u.power === mind.power && canReach(u, deal.to),
+    ).length
+    /*
+     * Could I have had it? For somewhere occupied that means enough units to
+     * throw the occupant out. For somewhere empty it means one unit and a
+     * bit of nerve: walking in alone might bounce, but it might not, and
+     * helping somebody else in guarantees it is theirs.
+     */
+    const couldTakeIt = holding ? reach >= strengthNeeded(pos, mind.power, deal.to) : reach >= 1
+    const cost = couldTakeIt ? desire(pos, mind.power, deal.to) : A_TURN
     const worth = believe * (FRIEND + NEIGHBOUR)
     return worth > cost
-      ? { reply: 'accept', why: `${named(them)} is worth more to me than ${place(deal.to)}.` }
+      ? { reply: 'accept', why: `${named(them)} is worth more to me than a turn.` }
       : { reply: 'refuse', why: `I want ${place(deal.to)} for myself.` }
   }
 
@@ -572,4 +775,21 @@ function borderland(pos: Position, us: Power, them: Power): string[] {
     .filter((p) => theirs.has(p))
     .filter((p) => pos.own.get(p) !== us && pos.own.get(p) !== them)
     .sort()
+}
+
+/**
+ * A stable number for a province, from one power's point of view.
+ *
+ * Not randomness -- the same power asked twice about the same province in
+ * the same game gets the same answer, which is what keeps a seeded game
+ * replayable. It only decides which of two equally valuable things a power
+ * reaches for first, and that is enough to stop seven identical minds
+ * playing seven identical games.
+ */
+function jitter(id: string, seed: number): number {
+  let h = (seed ^ 0x9e3779b9) >>> 0
+  for (let i = 0; i < id.length; i++) {
+    h = Math.imul(h ^ id.charCodeAt(i), 0x01000193) >>> 0
+  }
+  return h
 }

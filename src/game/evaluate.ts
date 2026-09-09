@@ -1,5 +1,5 @@
 import { ARMY, FLEET, PROVINCES, SOLO, base, type Power } from './map'
-import { canStep, type Board } from './orders'
+import { canStep, type Board, type Unit } from './orders'
 import { centreCount, type Ownership } from './turn'
 
 /**
@@ -23,6 +23,9 @@ const REACH = 12
 
 /** A centre of yours with somebody standing next to it is worth defending. */
 const THREAT = 40
+
+/** And what each centre a power is *missing* adds to the price of its own. */
+const WEAK = 40
 
 export interface Position {
   board: Board
@@ -68,12 +71,33 @@ export function desire(pos: Position, power: Power, province: string): number {
 
   const owner = pos.own.get(base(province))
   if (owner === power) {
-    // Yours already. Worth holding exactly as much as it is under threat.
-    return pressured(pos, base(province), power) ? CENTRE + THREAT : REACH
+    /*
+     * Yours already -- and since a unit standing on something is never sent
+     * to take it, this price is only ever asked about one of yours that is
+     * *empty*. An empty centre with somebody next to it is worth a whole
+     * centre, because one unit of theirs walking in takes it and there is
+     * nothing there to stop them. One with nobody next to it is worth
+     * nothing at all: a quiet centre behind your own lines is not an
+     * objective, and pricing it at a little was enough to have a ten-centre
+     * Germany spend two of its eight units walking Warsaw to Moscow and
+     * Munich to Berlin while the front stood still.
+     */
+    return pressured(pos, base(province), power) ? CENTRE : 0
   }
   // Somebody else's is worth slightly more than nobody's: it moves two
   // counts at once, theirs down and yours up.
-  return owner === undefined ? CENTRE : CENTRE + REACH
+  if (owner === undefined) return CENTRE
+  /*
+   * And a losing power's is worth more again.
+   *
+   * This is how a solo actually happens. Taking a centre off the power in
+   * front of you costs the same as taking one off the power who is nearly
+   * gone, and buys much less: the strong one takes it back, and the weak one
+   * cannot. Piling on is unsporting, correct, and the only thing on this
+   * board that compounds -- the fewer centres a power has, the fewer units,
+   * and the less it can hold what is left.
+   */
+  return CENTRE + REACH + Math.max(0, 6 - centreCount(pos.own, owner)) * WEAK
 }
 
 /**
@@ -88,32 +112,47 @@ export function desire(pos: Position, power: Power, province: string): number {
  * centuries without a province changing hands.
  */
 export function threatened(pos: Position, power: Power, province: string): boolean {
-  const id = base(province)
-  if (!PROVINCES[id]!.sc || pos.own.get(id) !== power) return false
-  return neighbours(pos, id, power) >= 2
+  return pressure(pos, power, province) >= 2
 }
 
-/** How many of somebody else's units are standing next door. */
-function neighbours(pos: Position, province: string, power: Power): number {
-  let n = 0
+/**
+ * The largest force one power could bring against this centre.
+ *
+ * Two units, not two neighbours -- and belonging to the *same* power, which
+ * is the part that took a frozen game to notice. Support comes from your own
+ * units or from a deal; two enemies who have not agreed anything cannot
+ * combine, so a centre with one German and one English unit beside it is not
+ * under threat from either of them.
+ *
+ * Counting any two neighbours instead put half of every army on garrison
+ * duty in a crowded position -- and the garrison was drawn from exactly the
+ * units that would otherwise have attacked. Seven powers each defending
+ * against a threat that did not exist is what a stalemate looks like from
+ * the inside.
+ */
+export function pressure(pos: Position, power: Power, province: string): number {
+  const id = base(province)
+  if (!PROVINCES[id]!.sc || pos.own.get(id) !== power) return 0
+  const byPower = new Map<Power, number>()
   for (const [, unit] of pos.board) {
     if (unit.power === power) continue
-    if (canStep(unit, province)) n++
-    else {
-      const coasts = PROVINCES[province]?.coasts
-      if (coasts?.some((c) => canStep(unit, `${province}/${c}`))) n++
-    }
+    if (!canArrive(unit, id)) continue
+    byPower.set(unit.power, (byPower.get(unit.power) ?? 0) + 1)
   }
-  return n
+  return Math.max(0, ...byPower.values())
+}
+
+/** Could this unit step into that province, by whichever coast? */
+function canArrive(unit: Unit, province: string): boolean {
+  if (canStep(unit, province)) return true
+  const coasts = PROVINCES[province]?.coasts
+  return coasts !== undefined && coasts.some((c) => canStep(unit, `${province}/${c}`))
 }
 
 /** Is somebody else's unit standing next door to this centre of ours? */
 function pressured(pos: Position, province: string, power: Power): boolean {
   for (const [, unit] of pos.board) {
-    if (unit.power === power) continue
-    if (canStep(unit, province)) return true
-    const coasts = PROVINCES[province]?.coasts
-    if (coasts && coasts.some((c) => canStep(unit, `${province}/${c}`))) return true
+    if (unit.power !== power && canArrive(unit, province)) return true
   }
   return false
 }
