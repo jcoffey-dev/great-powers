@@ -32,6 +32,7 @@ import {
   convoyable,
   supportTargets,
   supportable,
+  unescorted,
 } from './game/targets'
 import { adjustmentFor, centreCount, type AdjustOrder, type RetreatOrder } from './game/turn'
 import './App.css'
@@ -223,6 +224,16 @@ export default function App() {
   }
 
   const illegal = useMemo(() => validate(units, [...orders.values()]).illegal, [units, orders])
+
+  /*
+   * Crossings with no complete chain of convoy orders behind them.
+   *
+   * Separate from `illegal` because it is a different complaint. The rules
+   * are content with half a chain -- the move is legal and simply fails --
+   * and a player cannot tell that from having been blocked. See
+   * `unescorted` in the rules.
+   */
+  const waiting = useMemo(() => unescorted(units, [...orders.values()]), [units, orders])
 
   /** Yes or no to somebody's approach. Neither answer binds anybody. */
   const answer = (overture: Overture, yes: boolean) => {
@@ -522,6 +533,7 @@ export default function App() {
           orders={orders}
           step={step}
           illegal={illegal}
+          waiting={waiting}
           bySea={bySea.size > 0}
           onAsk={(kind) => setStep(step.kind === 'idle' ? step : ({ kind, at: step.at } as Step))}
           onClear={clear}

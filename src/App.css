@@ -222,7 +222,7 @@ header select {
   font-size: 0.84rem;
 }
 
-.written li { display: flex; align-items: center; gap: 6px; }
+.written li { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 6px; }
 
 /* An order the rules will not take, said so while it is being written. */
 .written li.bad span { color: #ff9a8b; text-decoration: line-through; }
@@ -506,3 +506,16 @@ header select {
 .said li { margin: 2px 0; }
 
 .watch { margin-top: 8px; }
+
+/*
+ * A crossing short of an escort. Amber rather than the red an illegal order
+ * gets: this order is legal and will simply fail, which is a different thing
+ * to tell somebody and deserves a different colour.
+ */
+.written li.unescorted span { color: #e8c46a; }
+.written li em {
+  flex-basis: 100%;
+  font-style: normal;
+  font-size: 0.76rem;
+  color: #b99a4e;
+}

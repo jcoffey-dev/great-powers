@@ -1,6 +1,14 @@
 import { reachableFrom } from './layout'
 import { PROVINCES, base } from './map'
-import { coastalSeas, coastsThroughFleets, type Board, type Unit } from './orders'
+import {
+  coastalSeas,
+  coastsThroughFleets,
+  convoyRoute,
+  validate,
+  type Board,
+  type Order,
+  type Unit,
+} from './orders'
 
 /**
  * What each half of an order may be clicked on.
@@ -90,5 +98,37 @@ export function convoyTargets(board: Board, unit: Unit, from: string): Set<strin
   if (unit.type !== 'fleet' || PROVINCES[sea]?.terrain !== 'sea') return new Set()
   const out = coastsThroughFleets(board, [sea])
   out.delete(base(from))
+  return out
+}
+
+/**
+ * Crossings nobody has been asked to escort.
+ *
+ * A convoy takes as many orders as there are seas to cross, and the player
+ * writing them needs one answer where the rules give two. Order an army
+ * across with no fleet told to carry it and the order is *illegal* -- the
+ * panel already reddens it. Order it with one fleet of a two-fleet chain and
+ * the order is perfectly legal, because legality is decided on the board
+ * alone; it simply fails, silently, a turn later.
+ *
+ * From the writer's chair those are the same complaint: nobody is carrying
+ * this. Worse, the board offers crossings that run through *other people's*
+ * fleets -- deliberately, since that is what the talking is for -- and those
+ * cannot be ordered at all, only asked for. So this asks the one question
+ * that matters: given every order on the table, is there a chain that
+ * actually gets this army there?
+ */
+export function unescorted(board: Board, given: readonly Order[]): Set<string> {
+  const { orders } = validate(board, given)
+  const out = new Set<string>()
+  for (const order of given) {
+    if (order.type !== 'move') continue
+    const at = base(order.at)
+    const unit = board.get(at)
+    if (unit?.type !== 'army') continue
+    // Only a crossing can want an escort; a march is its own arrangement.
+    if (reachableFrom(unit).map(base).includes(base(order.to))) continue
+    if (convoyRoute(board, orders, unit.at, order.to) === null) out.add(at)
+  }
   return out
 }

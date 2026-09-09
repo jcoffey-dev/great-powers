@@ -333,6 +333,27 @@ sits there in red until `F North Sea convoys Yorkshire → Norway` joins it,
 and then both go black. Nothing was added to make that happen. The validator
 already knew.
 
+### Half a convoy
+
+Multi-fleet convoys work -- London to Spain across the Channel and the
+Mid-Atlantic, with both fleets ordered to carry -- and the DATC's fifty
+convoy cases say so. What did not work was finding that out.
+
+A convoy takes as many orders as there are seas to cross, and the rules give
+two different answers to writing fewer. No fleet ordered at all and the move
+is *illegal*: legality is decided on the board alone, so the panel reddens
+it. One fleet of a two-fleet chain and the move is perfectly *legal*. It
+simply fails, silently, a turn later, with nothing on screen to distinguish
+it from having been blocked.
+
+From the chair where the orders are written those are the same complaint --
+nobody is carrying this. And it is worse than it looks, because the board
+deliberately offers crossings that run through other powers' fleets, which
+cannot be ordered at all, only asked for. So the panel now answers the one
+question that matters: given everything on the table, is there a chain that
+gets this army there? If not it says which is missing -- *no fleet has been
+ordered to carry it*, or *ordered to carry it, but not the whole way*.
+
 ## Before the map, and how to stop
 
 A landing page, because Diplomacy has a reputation and about half of it is

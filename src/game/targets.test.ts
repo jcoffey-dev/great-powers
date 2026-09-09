@@ -1,12 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import type { Power } from './map'
-import { boardFrom, type Unit } from './orders'
+import { boardFrom, validate, type Order, type Unit } from './orders'
 import {
   convoyDestinations,
   convoyTargets,
   convoyable,
   supportTargets,
   supportable,
+  unescorted,
 } from './targets'
 
 const A = (power: Power, at: string): Unit => ({ power, type: 'army', at })
@@ -137,5 +138,40 @@ describe('where an army may be carried', () => {
     const board = boardFrom([F('england', 'lon'), A('germany', 'mun'), F('england', 'nth')])
     expect(convoyDestinations(board, board.get('lon')!).size).toBe(0)
     expect(convoyDestinations(board, board.get('mun')!).size).toBe(0)
+  })
+})
+
+describe('a crossing nobody was asked to escort', () => {
+  const chain = () => boardFrom([A('england', 'lon'), F('england', 'eng'), F('england', 'mao')])
+  const cross: Order = { type: 'move', at: 'lon', to: 'spa', viaConvoy: true }
+  const carry = (at: string): Order => ({ type: 'convoy', at, from: 'lon', to: 'spa' })
+
+  it('is named when only half the chain has been ordered', () => {
+    // The rules are content with this: legality is decided on the board
+    // alone, so the move is legal and merely fails. The player cannot tell
+    // that from being blocked, which is the whole reason this exists.
+    const board = chain()
+    expect(validate(board, [cross, carry('eng')]).illegal.size).toBe(0)
+    expect(unescorted(board, [cross, carry('eng')])).toEqual(new Set(['lon']))
+  })
+
+  it('is not named once the whole chain is ordered', () => {
+    const board = chain()
+    expect(unescorted(board, [cross, carry('eng'), carry('mao')]).size).toBe(0)
+  })
+
+  it('says nothing about an army walking', () => {
+    const board = boardFrom([A('germany', 'mun'), F('england', 'nth')])
+    expect(unescorted(board, [{ type: 'move', at: 'mun', to: 'ruh' }]).size).toBe(0)
+  })
+
+  it('names a crossing with no convoy at all, which the rules only redden', () => {
+    // The rules call this illegal and the panel reddens it, but red alone
+    // does not say what is missing -- and the board offers crossings that
+    // run through other powers' fleets, which cannot be ordered at all.
+    const board = boardFrom([A('england', 'lon'), F('france', 'nth')])
+    const cross: Order = { type: 'move', at: 'lon', to: 'nwy', viaConvoy: true }
+    expect(validate(board, [cross]).illegal).toEqual(new Set(['lon']))
+    expect(unescorted(board, [cross])).toEqual(new Set(['lon']))
   })
 })

@@ -39,6 +39,7 @@ export function OrderPanel({
   orders,
   step,
   illegal,
+  waiting,
   bySea,
   onAsk,
   onClear,
@@ -48,6 +49,11 @@ export function OrderPanel({
   orders: ReadonlyMap<string, Order>
   step: Step
   illegal: ReadonlySet<string>
+  /**
+   * Crossings still short of a convoy. Not the same complaint as an illegal
+   * order and not shown as one: these are legal, and will simply fail.
+   */
+  waiting?: ReadonlySet<string>
   /** Whether any of the offered destinations needs a fleet to get there. */
   bySea?: boolean
   onAsk: (kind: Step['kind']) => void
@@ -86,11 +92,18 @@ export function OrderPanel({
 
       <ul className="written">
         {[...orders.entries()].map(([at, order]) => (
-          <li key={at} className={illegal.has(at) ? 'bad' : ''}>
+          <li key={at} className={illegal.has(at) ? 'bad' : waiting?.has(at) ? 'unescorted' : ''}>
             <span>{say(order, units.get(at))}</span>
             <button className="drop" onClick={() => onClear(at)} title="Take it back">
               ×
             </button>
+            {waiting?.has(at) && (
+              <em>
+                {illegal.has(at)
+                  ? 'no fleet has been ordered to carry it'
+                  : 'ordered to carry it, but not the whole way'}
+              </em>
+            )}
           </li>
         ))}
         {orders.size === 0 && <li className="dim">Nothing ordered. Everybody holds.</li>}
@@ -109,7 +122,7 @@ function hint(step: Step, bySea: boolean): string {
       return ''
     case 'move':
       return bySea
-        ? 'Click where it should go. The coasts in blue need a fleet to carry it — order the convoy too.'
+        ? 'Click where it should go. The coasts in blue need carrying — order every fleet along the way, not just the first.'
         : 'Click where it should go.'
     case 'support':
       return step.from === undefined
