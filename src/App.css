@@ -17,14 +17,46 @@
   padding: clamp(10px, 2vw, 22px);
 }
 
-/* The title on the left, the sound on the right, the state of play under
-   both -- so the toggle is findable without taking a line of its own. */
+/* The title on the left, the ways out on the right, the state of play under
+   both -- so none of them takes a line of its own. */
 header {
   grid-area: head;
   display: grid;
   grid-template-columns: 1fr auto;
   align-items: baseline;
   column-gap: 12px;
+}
+
+/*
+ * Leaving, and the sound. Wrapping rather than shrinking, because on a narrow
+ * window the alternative is three items squeezing the title off its own line.
+ */
+header .ways {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: baseline;
+  gap: 6px 10px;
+}
+
+header .ways a {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #7fc4e8;
+}
+
+/* Red like the resign button, and for the same reason: this one cannot be
+   taken back either. */
+.leave {
+  font: inherit;
+  font-weight: 700;
+  font-size: 0.85rem;
+  color: #ffb3a7;
+  background: #2c3b57;
+  border: 2px solid #2b2318;
+  border-radius: 6px;
+  padding: 3px 10px;
+  cursor: pointer;
 }
 
 h1 {
@@ -520,3 +552,43 @@ header select {
   font-size: 0.76rem;
   color: #b99a4e;
 }
+
+/* --------------------------------------------------------- the ending */
+
+/*
+ * The panel that ends the game.
+ *
+ * It takes the place the order panel had, which is where a player's eye
+ * already is when the last turn resolves, and it carries the only two things
+ * left to do: start another one, or leave. Bordered rather than merely
+ * spaced, because everything else in this column is a thing you are being
+ * asked to do and this one is a thing that has happened.
+ */
+.over {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 12px;
+  border: 2px solid #2b2318;
+  border-radius: 8px;
+  background: #22304a;
+}
+
+.over h2 { margin: 0; font-size: 1rem; color: #ffd479; }
+.over p { margin: 0; font-size: 0.84rem; line-height: 1.45; color: #cbd6e6; }
+
+.over .again {
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 800;
+  color: #241a10;
+  background: #ffd479;
+  border: 2px solid #2b2318;
+  border-radius: 7px;
+  padding: 6px 16px;
+  cursor: pointer;
+}
+
+.over .ways { font-size: 0.82rem; }
+.over .ways a { color: #7fc4e8; }

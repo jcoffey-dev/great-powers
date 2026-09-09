@@ -25,7 +25,7 @@ import { reachableFrom } from './game/layout'
 import { POWERS, PROVINCES, base, type Power } from './game/map'
 import { canStep, validate, type Order, type Unit } from './game/orders'
 import type { Proposal } from './game/press'
-import { endingSounded, mergeCues, type Cue } from './game/sound'
+import { endingSounded, mergeCues, type Cue, type Ending } from './game/sound'
 import {
   convoyDestinations,
   convoyTargets,
@@ -56,6 +56,7 @@ export default function App() {
   const [started, setStarted] = useState(false)
   const [said, setSaid] = useState<string[]>([])
   const [sure, setSure] = useState(false)
+  const [leaving, setLeaving] = useState(false)
 
   // ------------------------------------------------------------ audio glue
 
@@ -328,6 +329,7 @@ export default function App() {
     // one button here that cannot be taken back.
     if (!sure) {
       setSure(true)
+      setLeaving(false)
       if (synth.sfxOn) synth.reject()
       return
     }
@@ -339,6 +341,7 @@ export default function App() {
 
   const askDraw = () => {
     setSure(false)
+    setLeaving(false)
     if (synth.sfxOn) synth.telegraph(false)
     const { game: next, verdicts } = askForDraw(game, power)
     setGame(next)
@@ -347,6 +350,7 @@ export default function App() {
 
   const askConcede = () => {
     setSure(false)
+    setLeaving(false)
     const leader = POWERS.reduce((best, p) =>
       centreCount(own, p) > centreCount(own, best) ? p : best,
     )
@@ -361,9 +365,61 @@ export default function App() {
     setBuilds([])
   }
 
+  /**
+   * Back to the landing page, with nothing carried over.
+   *
+   * The refs matter as much as the state does. `ended` is what stops the
+   * closing music playing twice, and `talked` is the turn the powers have
+   * already negotiated -- and a fresh game starts at the same turn as the
+   * last one did, so a stale note there would have the second game played in
+   * silence by six powers who never spoke. `woken` is deliberately left
+   * alone: the audio context is open and does not need opening again.
+   */
+  const restart = useCallback(() => {
+    ended.current = false
+    talked.current = ''
+    setGame(newGame())
+    setAsked([])
+    setStep({ kind: 'idle' })
+    setOrders(new Map())
+    setRetreats(new Map())
+    setBuilds([])
+    setSaid([])
+    setSure(false)
+    setLeaving(false)
+    setStarted(false)
+    if (synth.sfxOn) synth.tap()
+  }, [])
+
+  /**
+   * Out of a game that is still being played.
+   *
+   * Asked twice, like the resign button it sits across the screen from, and
+   * for the same reason: it throws away a game that cannot be got back, and
+   * there is no browser dialog on the way to catch a misclick. The armed
+   * wording says what is actually lost rather than asking whether you are
+   * sure, which tells nobody anything.
+   *
+   * The two confirmations disarm each other. Half-pressing this and then
+   * reaching for Resign should not find Resign already waiting on its second
+   * click.
+   */
+  const leave = () => {
+    if (!leaving) {
+      setLeaving(true)
+      setSure(false)
+      if (synth.sfxOn) synth.reject()
+      return
+    }
+    restart()
+  }
+
   const mine = [...units.entries()].filter(([, u]) => u.power === power)
   const season = game.season === 'spring' ? 'Spring' : 'Autumn'
   const quit = game.resigned.includes(power) || game.out.includes(power)
+  // The same reading of the ending the closing music is chosen from, so the
+  // panel and the noise it arrives with are never telling different stories.
+  const ending = endingSounded(game.winner, game.out, power)
 
   if (!started) {
     return (
@@ -387,18 +443,42 @@ export default function App() {
     <div className="app">
       <header>
         <h1>Great Powers</h1>
-        <button
-          type="button"
-          className="sound"
-          aria-pressed={sound}
-          onClick={() => {
-            const next = !sound
-            setSound(next)
-            if (next) wake()
-          }}
-        >
-          {sound ? 'Sound on' : 'Sound off'}
-        </button>
+        {/*
+          The ways out, kept in the header because that is the one part of
+          this screen that is always on it -- the side column scrolls, and on
+          a narrow window it sits below a map most of a screen tall. A game
+          you cannot leave without the browser's back button is a game that
+          has taken the page hostage.
+
+          There is nothing here once the game is over: the panel that replaces
+          the orders then offers both of these and a new game besides, and one
+          screen should have one place to look.
+        */}
+        <nav className="ways">
+          {game.phase !== 'over' && (
+            <button type="button" className="leave" onClick={leave}>
+              {leaving ? 'Leave — this game is lost' : 'Leave game'}
+            </button>
+          )}
+          {game.phase !== 'over' && (
+            /* Absolute, as on the landing: this is served from a subdirectory
+               in production and from the root in development, so the relative
+               answer points at the game itself in one of them. */
+            <a href="https://games.jcoffey.dev/">The rest of the games</a>
+          )}
+          <button
+            type="button"
+            className="sound"
+            aria-pressed={sound}
+            onClick={() => {
+              const next = !sound
+              setSound(next)
+              if (next) wake()
+            }}
+          >
+            {sound ? 'Sound on' : 'Sound off'}
+          </button>
+        </nav>
         <p className="dim">
           {game.phase === 'over'
             ? game.winner
@@ -527,6 +607,30 @@ export default function App() {
           </div>
         )}
 
+        {game.phase === 'over' && (
+          /*
+           * The way out.
+           *
+           * Every other phase ends in a button, and this one used to end in
+           * nothing at all: the result was announced in the header and the
+           * page then sat there, with no way to start again and no way off
+           * it short of the browser's own back button. A game that has
+           * finished has to say so and then let go.
+           */
+          <div className="over">
+            <h2>{ENDINGS[ending].title}</h2>
+            <p>{ENDINGS[ending].said}</p>
+            <button type="button" className="again" onClick={restart}>
+              Play again
+            </button>
+            <p className="ways">
+              {/* Absolute for the same reason the landing's is: served from a
+                  subdirectory in production and from the root in development. */}
+              <a href="https://games.jcoffey.dev/">The rest of the games</a>
+            </p>
+          </div>
+        )}
+
         {game.phase === 'orders' && !quit && (
         <OrderPanel
           units={units}
@@ -549,6 +653,33 @@ export default function App() {
       </aside>
     </div>
   )
+}
+
+/**
+ * How the game ended, from the seat the player was sitting in.
+ *
+ * The header says what happened on the board and names the winner. This says
+ * what it was to be you, which is a different sentence -- a draw the survivors
+ * agreed to and a draw you were eliminated well before are the same result and
+ * not the same afternoon.
+ */
+const ENDINGS: Record<Ending, { title: string; said: string }> = {
+  victory: {
+    title: 'The board is yours.',
+    said: 'Eighteen centres. Nobody has ever got there alone, so somebody helped you to it, and they will have noticed by now.',
+  },
+  defeat: {
+    title: 'Beaten.',
+    said: 'Somebody else reached eighteen. That only ever happens because the rest of the board let it.',
+  },
+  eliminated: {
+    title: 'Off the board.',
+    said: 'Your last centre went and the game carried on without you. Your centres are somebody else’s now.',
+  },
+  armistice: {
+    title: 'The armistice.',
+    said: 'Nobody reached eighteen. What is left is divided between the powers still standing, and you are one of them.',
+  },
 }
 
 function coastOf(unit: Unit, province: string): string {
