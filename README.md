@@ -228,8 +228,25 @@ Worth saying plainly: seven bots left alone draw. They take centres off each
 other now, which they could not do at all before, but none of them breaks
 away to a solo. Beating six of them is the game.
 
+## The other two phases
+
+A beaten unit that finds somewhere to stand is a nuisance for years; one that
+does not is gone. And the winter is where a good spring turns into a bigger
+army, or does not. Both are decisions, and both were being taken *for* the
+player while the rest of this was built, which quietly removed half the
+consequence of the turn they had just played.
+
+They are offered as places rather than as a notation, for the same reason the
+orders are: the rules already know what is allowed, so the interface only
+ever offers what is. A beaten unit lists the provinces it may fall back to and
+nothing else; the winter lists the home centres that are yours and empty, with
+a fleet offered only where a fleet could sit.
+
+The game steps past anything with no decision in it. A retreat phase where
+none of your units was thrown out, or a winter where your centres and units
+are level, is not a choice -- it is a screen asking you to press Done.
+
 ## Still to build
 
-- the press in front of the player, rather than only between the bots
 - bots strong enough to solo against each other, not only to draw
 - the music, the battle sound, the four endings

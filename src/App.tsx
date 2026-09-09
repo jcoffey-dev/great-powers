@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Board, COLOURS, POWER_NAMES } from './components/Board'
+import { BuildPanel, RetreatPanel } from './components/AdjustPanel'
 import { OrderPanel, type Step } from './components/OrderPanel'
 import { PressPanel } from './components/PressPanel'
 import { consider, type Overture } from './game/bot'
@@ -17,7 +18,7 @@ import { reachableFrom } from './game/layout'
 import { POWERS, PROVINCES, base, type Power } from './game/map'
 import { canStep, validate, type Order, type Unit } from './game/orders'
 import type { Proposal } from './game/press'
-import { centreCount } from './game/turn'
+import { adjustmentFor, centreCount, type AdjustOrder, type RetreatOrder } from './game/turn'
 import './App.css'
 
 /**
@@ -33,6 +34,8 @@ export default function App() {
   const [asked, setAsked] = useState<Overture[]>([])
   const [step, setStep] = useState<Step>({ kind: 'idle' })
   const [orders, setOrders] = useState<Map<string, Order>>(new Map())
+  const [retreats, setRetreats] = useState<Map<string, RetreatOrder>>(new Map())
+  const [builds, setBuilds] = useState<AdjustOrder[]>([])
 
   /*
    * The talking happens once per orders phase. Keeping a note of which turn
@@ -141,19 +144,52 @@ export default function App() {
     return reply.why
   }
 
+  /**
+   * Carry the game forward past anything the player has no say in.
+   *
+   * A retreat phase with none of your units beaten, or a winter where your
+   * centres and units are level, is not a decision -- it is a screen asking
+   * you to press Done. So those are stepped through, and the game stops only
+   * where there is actually a choice to make.
+   */
+  const advance = useCallback(
+    (from: Game): Game => {
+      let g = from
+      for (;;) {
+        if (g.phase === 'retreats') {
+          const mineBeaten = [...(g.outcome?.dislodged.values() ?? [])].some(
+            (d) => d.unit.power === power,
+          )
+          if (mineBeaten) return g
+          g = resolveRetreats(g, power, [])
+          continue
+        }
+        if (g.phase === 'builds') {
+          if (adjustmentFor(g.own, g.board, power) !== 0) return g
+          g = resolveBuilds(g, power, [])
+          continue
+        }
+        return g
+      }
+    },
+    [power],
+  )
+
   const submit = () => {
-    let next = resolveOrders(game, power, [...orders.values()])
-    // The player's own retreats and builds are taken for them for now, the
-    // same way a computer power's are. Choosing them is the next piece.
-    while (next.phase === 'retreats' || next.phase === 'builds') {
-      next = next.phase === 'retreats'
-        ? resolveRetreats(next, power, [])
-        : resolveBuilds(next, power, [])
-    }
     setOrders(new Map())
     setStep({ kind: 'idle' })
     setAsked([])
-    setGame(next)
+    setGame(advance(resolveOrders(game, power, [...orders.values()])))
+  }
+
+  const doneRetreating = () => {
+    setGame(advance(resolveRetreats(game, power, [...retreats.values()])))
+    setRetreats(new Map())
+  }
+
+  const doneBuilding = () => {
+    setGame(advance(resolveBuilds(game, power, builds)))
+    setBuilds([])
   }
 
   const mine = [...units.entries()].filter(([, u]) => u.power === power)
@@ -185,8 +221,10 @@ export default function App() {
               ))}
             </select>
           )}
-          {game.phase !== 'over' &&
+          {game.phase === 'orders' &&
             `. ${mine.length - orders.size} of ${mine.length} units still without orders.`}
+          {game.phase === 'retreats' && '. Somebody of yours was thrown out.'}
+          {game.phase === 'builds' && '. The winter.'}
         </p>
       </header>
 
@@ -212,6 +250,30 @@ export default function App() {
           ))}
         </ul>
 
+        {game.phase === 'retreats' && game.outcome && (
+          <RetreatPanel
+            power={power}
+            board={game.board}
+            outcome={game.outcome}
+            chosen={retreats}
+            onChoose={(o) => setRetreats((prev) => new Map(prev).set(base(o.at), o))}
+            onDone={doneRetreating}
+          />
+        )}
+
+        {game.phase === 'builds' && (
+          <BuildPanel
+            power={power}
+            board={game.board}
+            own={game.own}
+            chosen={builds}
+            onChoose={(o) => setBuilds((prev) => [...prev, o])}
+            onDrop={(at) => setBuilds((prev) => prev.filter((c) => base(c.at) !== base(at)))}
+            onDone={doneBuilding}
+          />
+        )}
+
+        {game.phase === 'orders' && (
         <PressPanel
           power={power}
           turn={turnOf(game)}
@@ -222,7 +284,9 @@ export default function App() {
           onAnswer={answer}
           onAsk={ask}
         />
+        )}
 
+        {game.phase === 'orders' && (
         <OrderPanel
           units={units}
           orders={orders}
@@ -232,6 +296,7 @@ export default function App() {
           onClear={clear}
           onSubmit={submit}
         />
+        )}
 
         <ul className="log">
           {game.log.slice(-6).map((line, i) => (

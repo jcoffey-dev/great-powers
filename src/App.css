@@ -215,6 +215,33 @@ header select {
 
 .powers li.me { color: #ffd479; }
 
+/* --- retreats and the winter ---------------------------------------- */
+
+.adjust { display: flex; flex-direction: column; gap: 7px; }
+
+.adjust h2 { margin: 0; font-size: 0.95rem; color: #ffd479; }
+
+.beaten { display: flex; flex-direction: column; gap: 4px; }
+
+.choices { display: flex; flex-wrap: wrap; gap: 4px; }
+
+.choices button {
+  font: inherit;
+  font-size: 0.76rem;
+  font-weight: 700;
+  color: #f2e9d8;
+  background: #22304a;
+  border: 2px solid #2b2318;
+  border-radius: 6px;
+  padding: 2px 8px;
+  cursor: pointer;
+}
+
+.choices button.on { background: #2f5d3a; }
+.choices button.no { background: #4a2b26; }
+.choices button.no.on { background: #6d2f28; }
+.choices button:disabled { opacity: 0.35; cursor: default; }
+
 /* --- the press ------------------------------------------------------- */
 
 .press h2 { margin: 0 0 4px; font-size: 0.95rem; color: #ffd479; }
