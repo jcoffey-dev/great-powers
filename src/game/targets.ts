@@ -1,6 +1,6 @@
 import { reachableFrom } from './layout'
-import { PROVINCES, base } from './map'
-import type { Board, Unit } from './orders'
+import { FLEET, PROVINCES, base } from './map'
+import { coastalSeas, type Board, type Unit } from './orders'
 
 /**
  * What each half of an order may be clicked on.
@@ -51,24 +51,80 @@ export function supportTargets(board: Board, unit: Unit, from: string): Set<stri
   return out
 }
 
-/** The armies a fleet at sea may carry: any army on a coast but its own. */
-export function convoyable(board: Board, unit: Unit): Set<string> {
+/**
+ * The coasts a chain of crewed seas touches, starting from these.
+ *
+ * The model the whole convoy offering is built on: a sea counts if there is
+ * a fleet standing in it, whoever owns it, and the chain runs as far as the
+ * fleets do. A fleet that has not been ordered to convoy still counts -- it
+ * is a thing that could be arranged, which is what the negotiation is for,
+ * and the adjudicator will bounce the crossing if it is not.
+ *
+ * This is deliberately not the question the rules ask when they *judge* a
+ * convoy order, which is whether water could ever get there. That one says
+ * yes to most of Europe: it would offer thirty provinces because a chain of
+ * fleets is conceivable, which is worse than offering none.
+ */
+function coastsReached(board: Board, from: readonly string[]): Set<string> {
+  const crewed = (id: string) => board.get(base(id))?.type === 'fleet'
   const out = new Set<string>()
-  for (const [at, other] of board) {
-    if (other.type !== 'army') continue
-    if (PROVINCES[at]!.terrain !== 'coast') continue
-    if (at === base(unit.at)) continue
-    out.add(at)
+  const seen = new Set<string>()
+  const queue = [...from]
+
+  while (queue.length > 0) {
+    const sea = queue.shift()!
+    if (seen.has(sea)) continue
+    seen.add(sea)
+    for (const next of FLEET[sea] ?? []) {
+      const p = base(next)
+      if (PROVINCES[p]!.terrain === 'sea') {
+        if (crewed(p)) queue.push(p)
+      } else if (PROVINCES[p]!.terrain === 'coast') {
+        out.add(p)
+      }
+    }
   }
   return out
 }
 
-/** Where it may be put ashore: any other coast. Whether a chain of fleets
- * actually exists is the adjudicator's business, not the map's. */
-export function convoyTargets(from: string): Set<string> {
-  return new Set(
-    Object.keys(PROVINCES).filter(
-      (p) => PROVINCES[p]!.terrain === 'coast' && p !== base(from),
-    ),
-  )
+/** The seas off this coast that have a fleet in them. */
+const putToSea = (board: Board, coast: string): string[] =>
+  coastalSeas(coast)
+    .map(base)
+    .filter((sea) => board.get(sea)?.type === 'fleet')
+
+/** Where an army could be carried to, given the fleets actually on the board. */
+export function convoyDestinations(board: Board, unit: Unit): Set<string> {
+  const here = base(unit.at)
+  if (unit.type !== 'army' || PROVINCES[here]?.terrain !== 'coast') return new Set()
+  const out = coastsReached(board, putToSea(board, here))
+  out.delete(here)
+  return out
+}
+
+/**
+ * The armies this fleet could carry.
+ *
+ * Only the ones its own chain can actually reach. Offering every army on
+ * every coast wrote orders the adjudicator threw away: the North Sea has no
+ * business being asked to carry an army out of Ankara.
+ */
+export function convoyable(board: Board, unit: Unit): Set<string> {
+  const sea = base(unit.at)
+  if (unit.type !== 'fleet' || PROVINCES[sea]?.terrain !== 'sea') return new Set()
+  const ashore = coastsReached(board, [sea])
+  const out = new Set<string>()
+  for (const coast of ashore) {
+    if (board.get(coast)?.type === 'army') out.add(coast)
+  }
+  return out
+}
+
+/** Where this fleet could put that army ashore: the same chain, less home. */
+export function convoyTargets(board: Board, unit: Unit, from: string): Set<string> {
+  const sea = base(unit.at)
+  if (unit.type !== 'fleet' || PROVINCES[sea]?.terrain !== 'sea') return new Set()
+  const out = coastsReached(board, [sea])
+  out.delete(base(from))
+  return out
 }

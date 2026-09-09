@@ -22,7 +22,13 @@ import { POWERS, PROVINCES, base, type Power } from './game/map'
 import { canStep, validate, type Order, type Unit } from './game/orders'
 import type { Proposal } from './game/press'
 import { endingSounded, mergeCues, type Cue } from './game/sound'
-import { convoyTargets, convoyable, supportTargets, supportable } from './game/targets'
+import {
+  convoyDestinations,
+  convoyTargets,
+  convoyable,
+  supportTargets,
+  supportable,
+} from './game/targets'
 import { adjustmentFor, centreCount, type AdjustOrder, type RetreatOrder } from './game/turn'
 import './App.css'
 
@@ -104,18 +110,39 @@ export default function App() {
   const units = game.board
   const pos = useMemo(() => ({ board: units, own }), [units, own])
 
+  /*
+   * The coasts the selected army could be carried to.
+   *
+   * Kept separate from the rest of the offering because the board draws it
+   * differently -- a crossing is not a march, and a player who cannot tell
+   * them apart will order one meaning the other -- and because it is what
+   * decides whether the move is written `viaConvoy`.
+   */
+  const bySea = useMemo(() => {
+    if (step.kind !== 'move') return new Set<string>()
+    const unit = units.get(step.at)
+    if (!unit) return new Set<string>()
+    const legs = new Set(reachableFrom(unit).map(base))
+    return new Set([...convoyDestinations(units, unit)].filter((p) => !legs.has(p)))
+  }, [step, units])
+
   const offering = useMemo(() => {
     if (step.kind === 'idle') return new Set<string>()
     const unit = units.get(step.at)
     if (!unit) return new Set<string>()
-    if (step.kind === 'move') return new Set(reachableFrom(unit).map(base))
+    if (step.kind === 'move') {
+      // Where its own legs go, and where somebody's fleets could take it.
+      return new Set([...reachableFrom(unit).map(base), ...bySea])
+    }
     if (step.kind === 'support') {
       return step.from === undefined
         ? supportable(units, unit)
         : supportTargets(units, unit, step.from)
     }
-    return step.from === undefined ? convoyable(units, unit) : convoyTargets(step.from)
-  }, [step, units])
+    return step.from === undefined
+      ? convoyable(units, unit)
+      : convoyTargets(units, unit, step.from)
+  }, [step, units, bySea])
 
   const write = useCallback((order: Order) => {
     setOrders((prev) => new Map(prev).set(base(order.at), order))
@@ -157,7 +184,18 @@ export default function App() {
       return
     }
     if (step.kind === 'move') {
-      write({ type: 'move', at: step.at, to: coastOf(units.get(step.at)!, province), power })
+      /*
+       * A destination its legs cannot reach is a crossing, and saying so is
+       * not a formality: the rules let a unit be convoyed to a province it
+       * could have walked to, and the two orders resolve differently.
+       */
+      write({
+        type: 'move',
+        at: step.at,
+        to: coastOf(units.get(step.at)!, province),
+        power,
+        ...(bySea.has(province) ? { viaConvoy: true } : {}),
+      })
       return
     }
     if (step.kind === 'support') {
@@ -319,6 +357,7 @@ export default function App() {
           selected={step.kind === 'idle' ? null : step.at}
           helping={step.kind === 'support' || step.kind === 'convoy' ? step.from : null}
           offering={offering}
+          bySea={bySea}
           onPick={click}
         />
       </div>
@@ -376,6 +415,7 @@ export default function App() {
           orders={orders}
           step={step}
           illegal={illegal}
+          bySea={bySea.size > 0}
           onAsk={(kind) => setStep(step.kind === 'idle' ? step : ({ kind, at: step.at } as Step))}
           onClear={clear}
           onSubmit={submit}

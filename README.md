@@ -271,6 +271,37 @@ the order takes you back to the start of it. And the unit you picked to
 support is marked on the board in a different colour from the unit giving
 the order, because otherwise the second half is written blind.
 
+## Ordering a convoy
+
+The rules have had convoys all along -- fifty of the DATC cases are about
+them, including the paradoxes -- but for a while you could not order one.
+The board offered an army the provinces it could walk to, and a crossing is
+by definition not one of those, so the army's half of a convoy could not be
+written. The fleet's half could, which made it worse: the verb was there and
+did nothing anybody could use.
+
+An army on a coast is now also offered the coasts a chain of crewed seas can
+reach, drawn in blue and with long dashes so a crossing does not look like a
+march. A sea counts if there is a fleet standing in it, whoever owns it. A
+fleet that has not been ordered to convoy still counts: it is a thing that
+could be arranged, which is what the negotiation is for, and the adjudicator
+will bounce the crossing if it was not.
+
+That is deliberately not the question the rules ask when they *judge* a
+convoy, which is whether water could ever get there. That one says yes to
+most of Europe. Offering thirty provinces because a chain of fleets is
+conceivable would be worse than offering none.
+
+Clicking a blue coast writes the move `viaConvoy`, which is not a formality:
+the rules allow a unit to be convoyed to a province it could have walked to,
+and the two orders resolve differently.
+
+The two halves are written separately, as they always have been, and the
+order list says so while only one of them exists -- `A Yorkshire → Norway`
+sits there in red until `F North Sea convoys Yorkshire → Norway` joins it,
+and then both go black. Nothing was added to make that happen. The validator
+already knew.
+
 ## Still to build
 
 - bots strong enough to solo against each other, not only to draw

@@ -39,6 +39,7 @@ export function OrderPanel({
   orders,
   step,
   illegal,
+  bySea,
   onAsk,
   onClear,
   onSubmit,
@@ -47,6 +48,8 @@ export function OrderPanel({
   orders: ReadonlyMap<string, Order>
   step: Step
   illegal: ReadonlySet<string>
+  /** Whether any of the offered destinations needs a fleet to get there. */
+  bySea?: boolean
   onAsk: (kind: Step['kind']) => void
   onClear: (at: string) => void
   onSubmit: () => void
@@ -75,7 +78,7 @@ export function OrderPanel({
             )}
             <button onClick={() => onClear(selected)}>Hold</button>
           </div>
-          <p className="hint dim">{hint(step)}</p>
+          <p className="hint dim">{hint(step, bySea ?? false)}</p>
         </>
       ) : (
         <p className="hint dim">Click one of your units.</p>
@@ -100,12 +103,14 @@ export function OrderPanel({
   )
 }
 
-function hint(step: Step): string {
+function hint(step: Step, bySea: boolean): string {
   switch (step.kind) {
     case 'idle':
       return ''
     case 'move':
-      return 'Click where it should go.'
+      return bySea
+        ? 'Click where it should go. The coasts in blue need a fleet to carry it — order the convoy too.'
+        : 'Click where it should go.'
     case 'support':
       return step.from === undefined
         ? 'Click the unit to support — or its own province, to hold it there.'

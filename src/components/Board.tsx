@@ -37,6 +37,7 @@ export function Board({
   selected,
   helping,
   offering,
+  bySea,
   onPick,
 }: {
   units: Units
@@ -54,6 +55,12 @@ export function Board({
   helping?: string | null
   /** Provinces the current step will accept a click on. */
   offering?: ReadonlySet<string>
+  /**
+   * Of those, the ones only a convoy can reach. Drawn differently because a
+   * crossing is not a march: it needs fleets that have been asked, and it
+   * fails in ways a land move cannot.
+   */
+  bySea?: ReadonlySet<string>
   onPick?: (province: string) => void
 }) {
   const ids = Object.keys(PROVINCES)
@@ -82,7 +89,9 @@ export function Board({
                 : helping === id
                   ? 'helping'
                   : reachable.has(id)
-                    ? 'open'
+                    ? bySea?.has(id)
+                      ? 'open ferry'
+                      : 'open'
                     : ''
             }`}
             d={SHAPES[id] ?? ''}

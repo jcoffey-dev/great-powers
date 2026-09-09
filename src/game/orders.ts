@@ -331,7 +331,7 @@ export function seaRouteExists(
 }
 
 /** The seas a coastal province touches, whichever coast they are on. */
-function coastalSeas(id: string): string[] {
+export function coastalSeas(id: string): string[] {
   const coasts = PROVINCES[id]?.coasts
   const keys = coasts ? coasts.map((c) => `${id}/${c}`) : [id]
   return keys.flatMap((k) => (FLEET[k] ?? []).filter((n) => PROVINCES[base(n)]!.terrain === 'sea'))

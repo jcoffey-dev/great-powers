@@ -102,6 +102,9 @@ header select {
 /* The unit you picked to support or to carry: solid, and not the colour of
    the unit giving the order, so the two halves are never confused. */
 .region.helping { stroke: #1f6fb8; stroke-width: 7; }
+/* Offered, but only a convoy gets there. Long dashes rather than short:
+   the same invitation, made by sea. */
+.region.open.ferry { stroke: #1f6fb8; stroke-dasharray: 22 10; }
 
 .pip {
   fill: #fffaf0;

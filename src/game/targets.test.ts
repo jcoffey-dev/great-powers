@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import type { Power } from './map'
 import { boardFrom, type Unit } from './orders'
-import { convoyable, convoyTargets, supportTargets, supportable } from './targets'
+import {
+  convoyDestinations,
+  convoyTargets,
+  convoyable,
+  supportTargets,
+  supportable,
+} from './targets'
 
 const A = (power: Power, at: string): Unit => ({ power, type: 'army', at })
 const F = (power: Power, at: string): Unit => ({ power, type: 'fleet', at })
@@ -53,18 +59,83 @@ describe('who a unit may support', () => {
 })
 
 describe('who a fleet may carry', () => {
-  it('offers armies on coasts, and nobody else', () => {
+  it('offers armies on the coasts it touches, and nobody else', () => {
     const board = boardFrom([F('england', 'nth'), A('england', 'lon'), A('germany', 'mun')])
     const who = convoyable(board, board.get('nth')!)
     expect(who.has('lon')).toBe(true)
     expect(who.has('mun')).toBe(false)
   })
 
+  it('does not offer an army its own chain cannot reach', () => {
+    // The North Sea has no business being asked to carry Ankara. Offering it
+    // wrote an order the adjudicator threw away without saying why.
+    const board = boardFrom([F('england', 'nth'), A('turkey', 'ank')])
+    expect(convoyable(board, board.get('nth')!).has('ank')).toBe(false)
+  })
+
+  it('reaches further when there are fleets to reach with', () => {
+    const alone = boardFrom([F('england', 'nth'), A('france', 'spa')])
+    expect(convoyable(alone, alone.get('nth')!).has('spa')).toBe(false)
+
+    const chain = boardFrom([
+      F('england', 'nth'),
+      F('england', 'eng'),
+      F('england', 'mao'),
+      A('france', 'spa'),
+    ])
+    expect(convoyable(chain, chain.get('nth')!).has('spa')).toBe(true)
+  })
+
   it('lands them on a coast that is not the one they left', () => {
-    const where = convoyTargets('lon')
+    const board = boardFrom([F('england', 'nth'), A('england', 'lon')])
+    const where = convoyTargets(board, board.get('nth')!, 'lon')
     expect(where.has('nwy')).toBe(true)
     expect(where.has('lon')).toBe(false)
     expect(where.has('mun')).toBe(false)
     expect(where.has('nth')).toBe(false)
+  })
+})
+
+describe('where an army may be carried', () => {
+  it('offers a coast across one sea with a fleet in it', () => {
+    const board = boardFrom([A('england', 'lon'), F('england', 'nth')])
+    const where = convoyDestinations(board, board.get('lon')!)
+    expect(where.has('nwy')).toBe(true)
+    expect(where.has('bel')).toBe(true)
+  })
+
+  it('offers nothing when there is no fleet to carry it', () => {
+    const board = boardFrom([A('england', 'lon')])
+    expect(convoyDestinations(board, board.get('lon')!).size).toBe(0)
+  })
+
+  it('counts a fleet of any power, because that is what talking is for', () => {
+    const board = boardFrom([A('england', 'lon'), F('germany', 'nth')])
+    expect(convoyDestinations(board, board.get('lon')!).has('nwy')).toBe(true)
+  })
+
+  it('walks a chain, and stops where the chain does', () => {
+    // London to Spain wants the Channel and the Mid-Atlantic. With only the
+    // Channel crewed it reaches Brest and no further.
+    const one = boardFrom([A('england', 'lon'), F('england', 'eng')])
+    expect(convoyDestinations(one, one.get('lon')!).has('bre')).toBe(true)
+    expect(convoyDestinations(one, one.get('lon')!).has('spa')).toBe(false)
+
+    const two = boardFrom([A('england', 'lon'), F('england', 'eng'), F('england', 'mao')])
+    expect(convoyDestinations(two, two.get('lon')!).has('spa')).toBe(true)
+  })
+
+  it('never offers the army its own province, or anywhere inland', () => {
+    const board = boardFrom([A('england', 'lon'), F('england', 'nth')])
+    const where = convoyDestinations(board, board.get('lon')!)
+    expect(where.has('lon')).toBe(false)
+    expect(where.has('mun')).toBe(false)
+    expect(where.has('nth')).toBe(false)
+  })
+
+  it('has nothing to say about a fleet, or an army inland', () => {
+    const board = boardFrom([F('england', 'lon'), A('germany', 'mun'), F('england', 'nth')])
+    expect(convoyDestinations(board, board.get('lon')!).size).toBe(0)
+    expect(convoyDestinations(board, board.get('mun')!).size).toBe(0)
   })
 })
