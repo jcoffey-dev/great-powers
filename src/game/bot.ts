@@ -129,8 +129,21 @@ export function chooseOrders(pos: Position, mind: Mind, turn: number): Choice {
   }
 
   const broke = settleUp(pos, mind, turn, orders, reasoning)
+
+  /*
+   * Only this power's orders come back. The validator fills in a hold for
+   * every unit on the board -- which is right for adjudication and wrong as
+   * an answer to "what does Germany do this turn", since it hands back orders
+   * for all twenty-two units including everybody else's. Nothing caught that
+   * until seven powers were asked at once and England submitted orders for
+   * the whole board.
+   */
   const plan = validate(pos.board, [...orders.values()])
-  return { orders: [...plan.orders.values()], broke, reasoning }
+  const ours = [...plan.orders.entries()]
+    .filter(([at]) => pos.board.get(at)?.power === mind.power)
+    .map(([, order]) => order)
+
+  return { orders: ours, broke, reasoning }
 }
 
 /**

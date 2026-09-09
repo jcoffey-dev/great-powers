@@ -1,4 +1,4 @@
-import { PROVINCES, SOLO, base, type Power } from './map'
+import { ARMY, FLEET, PROVINCES, SOLO, base, type Power } from './map'
 import { canStep, type Board } from './orders'
 import { centreCount, type Ownership } from './turn'
 
@@ -45,7 +45,7 @@ export function standing(pos: Position, power: Power): number {
 
   for (const [at, unit] of pos.board) {
     if (unit.power !== power) continue
-    for (const target of neighbouringCentres(pos, unit.at)) {
+    for (const target of nextTo(base(unit.at))) {
       if (pos.own.get(target) !== power) score += REACH
     }
     if (PROVINCES[at]!.sc && pos.own.get(at) === power && pressured(pos, at, power)) {
@@ -63,7 +63,7 @@ export function desire(pos: Position, power: Power, province: string): number {
   const p = PROVINCES[base(province)]!
   if (!p.sc) {
     // Not a centre, so worth only what it opens up next year.
-    return neighbouringCentres(pos, province).filter((c) => pos.own.get(c) !== power).length * REACH
+    return nextTo(base(province)).filter((c) => pos.own.get(c) !== power).length * REACH
   }
 
   const owner = pos.own.get(base(province))
@@ -97,15 +97,31 @@ function pressured(pos: Position, province: string, power: Power): boolean {
   return false
 }
 
-/** Supply centres a unit here could move to next. */
-function neighbouringCentres(pos: Position, at: string): string[] {
-  const unit = pos.board.get(base(at))
-  if (!unit) return []
+/**
+ * Supply centres next door to a province.
+ *
+ * Asked of the *province*, not of a unit standing in it, and that is the
+ * whole point. The first version looked up the unit at the destination to
+ * find out what it could reach -- and an empty province has no unit, so every
+ * empty non-centre scored zero, every such move was skipped as worthless, and
+ * fifteen of nineteen units held in Spring 1901. A game played out to 1967
+ * ended with the board almost where it started, which is what sent me looking.
+ */
+const near: Record<string, string[]> = {}
+
+function nextTo(province: string): string[] {
+  if (near[province]) return near[province]!
+
   const out = new Set<string>()
-  for (const [id, p] of Object.entries(PROVINCES)) {
-    if (!p.sc) continue
-    if (canStep(unit, id)) out.add(id)
-    else if (p.coasts?.some((c) => canStep(unit, `${id}/${c}`))) out.add(id)
+  const add = (id: string) => {
+    if (PROVINCES[base(id)]?.sc) out.add(base(id))
   }
-  return [...out]
+  for (const to of ARMY[province] ?? []) add(to)
+  const coasts = PROVINCES[province]?.coasts
+  const keys = coasts ? coasts.map((c) => `${province}/${c}`) : [province]
+  for (const key of keys) for (const to of FLEET[key] ?? []) add(to)
+
+  out.delete(province)
+  near[province] = [...out]
+  return near[province]!
 }

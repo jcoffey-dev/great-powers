@@ -197,6 +197,31 @@ words, because an arrow cannot tell you that the support you meant for Vienna
 is being given to Budapest. Anything the rules will not take is struck
 through in the list as it is written, rather than after the turn.
 
+## The turn
+
+`src/game/game.ts` is the loop, and it has no interface attached on purpose:
+a whole game can be played out in a test from the opening to whatever end it
+finds. That is the only way to answer the question that actually matters
+about the bots -- not whether each order looks sensible, but whether seven
+powers left alone reach a conclusion.
+
+Spring orders, retreats, autumn orders, retreats, then the winter, which is
+the only phase that changes who owns anything.
+
+Before the orders, everybody talks. Computer powers approach each other,
+answer on the merits, and what they agree binds that turn and is judged at
+the end of it. Approaches to the human are handed back rather than answered
+for them.
+
+**What it does not do yet is finish.** Played out to 2149 the board is alive
+and nobody has soloed: the powers take the neutrals in the first few years
+and then hold each other off indefinitely. Taking a defended centre needs two
+units on it, and the bots do not reliably arrange that even with deals being
+struck every turn. That is the next piece of work and it is a fact about the
+bots, not the loop, so the test says what the loop guarantees and no more.
+
 ## Still to build
 
-- the map, the orders, the music, the battle sound, the four endings
+- bots that can actually finish a game: coordinated attacks on defended centres
+- the press in front of the player, rather than only between the bots
+- the music, the battle sound, the four endings
