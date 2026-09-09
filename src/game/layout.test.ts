@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { ARMY, FLEET, PROVINCES, base } from './map'
-import { CENTRES, HEIGHT, WIDTH, borders, radius } from './layout'
+import { CENTRES, HEIGHT, WIDTH, borders, cell, radius, reachableFrom } from './layout'
 
 /**
  * Coordinates typed by hand are wrong somewhere, and a map is the one thing
@@ -93,5 +93,55 @@ describe('the drawing', () => {
       }
     }
     expect(overlapping).toEqual([])
+  })
+})
+
+describe('the regions', () => {
+  it('gives every province a shape with area in it', () => {
+    for (const id of ids) {
+      const poly = cell(id)
+      expect(poly.length, id).toBeGreaterThan(2)
+      // Shoelace: a region nobody can see is a region that is not there.
+      let area = 0
+      for (let i = 0; i < poly.length; i++) {
+        const a = poly[i]!
+        const b = poly[(i + 1) % poly.length]!
+        area += a.x * b.y - b.x * a.y
+      }
+      expect(Math.abs(area / 2), id).toBeGreaterThan(300)
+    }
+  })
+
+  it('contains its own centre', () => {
+    for (const id of ids) {
+      const poly = cell(id, 0)
+      const me = CENTRES[id]!
+      for (let i = 0; i < poly.length; i++) {
+        const a = poly[i]!
+        const b = poly[(i + 1) % poly.length]!
+        const cross = (b.x - a.x) * (me.y - a.y) - (b.y - a.y) * (me.x - a.x)
+        expect(cross, `${id} edge ${i}`).toBeGreaterThan(-0.01)
+      }
+    }
+  })
+})
+
+describe('what a unit may reach', () => {
+  /**
+   * The point of this being separate from the drawing. The regions cannot
+   * express every adjacency in the rules, so the map never claims to: this
+   * is what lights up when a province is clicked, and it comes from the
+   * graph rather than from which shapes happen to share an edge.
+   */
+  it('is the rules, not the picture', () => {
+    expect(reachableFrom({ type: 'army', at: 'vie' }).sort()).toEqual(
+      ['boh', 'bud', 'gal', 'tri', 'tyr'],
+    )
+    expect(reachableFrom({ type: 'fleet', at: 'stp/sc' }).sort()).toEqual(['bot', 'fin', 'lvn'])
+  })
+
+  it('knows a fleet on one coast cannot use the other', () => {
+    expect(reachableFrom({ type: 'fleet', at: 'spa/nc' })).not.toContain('lyo')
+    expect(reachableFrom({ type: 'fleet', at: 'spa/sc' })).toContain('lyo')
   })
 })

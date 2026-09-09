@@ -185,3 +185,77 @@ export function bounds(pad = 34): { x: number; y: number; w: number; h: number }
 
   return { x: minX - pad, y: minY - pad, w: maxX - minX + pad * 2, h: maxY - minY + pad * 2 }
 }
+
+/**
+ * The region belonging to one province: the whole board, cut back by the
+ * halfway line between it and every other centre.
+ *
+ * This is a Voronoi diagram, and it is worth being straight about what it
+ * can and cannot do. It divides the plane with no gaps and no overlaps, and
+ * it looks like a board. It cannot reproduce every adjacency in the rules,
+ * because provinces here interleave -- the Adriatic borders Venice with
+ * Trieste between their centres -- and convex cells cannot say that.
+ *
+ * So the regions are what the map *looks* like, and they are not what the
+ * rules are read from. Clicking a province lights up exactly where its unit
+ * may legally go, taken from the adjacency graph. That is the honest split:
+ * the picture is a picture, and the rules answer for themselves when asked.
+ */
+export function cell(id: string, margin = 5): Point[] {
+  const me = CENTRES[id]
+  if (!me) return []
+
+  let poly: Point[] = [
+    { x: -60, y: -60 },
+    { x: WIDTH + 60, y: -60 },
+    { x: WIDTH + 60, y: HEIGHT + 60 },
+    { x: -60, y: HEIGHT + 60 },
+  ]
+
+  for (const [other, them] of Object.entries(CENTRES)) {
+    if (other === id) continue
+    const nx = them.x - me.x
+    const ny = them.y - me.y
+    const len = Math.hypot(nx, ny)
+    if (len === 0) continue
+    const on = {
+      x: (me.x + them.x) / 2 - (nx / len) * (margin / 2),
+      y: (me.y + them.y) / 2 - (ny / len) * (margin / 2),
+    }
+    poly = clip(poly, on, { x: nx / len, y: ny / len })
+    if (poly.length === 0) break
+  }
+  return poly
+}
+
+/** Everything on the near side of a line through `on` facing `normal`. */
+function clip(poly: Point[], on: Point, normal: Point): Point[] {
+  const side = (p: Point) => (p.x - on.x) * normal.x + (p.y - on.y) * normal.y
+  const out: Point[] = []
+  for (let i = 0; i < poly.length; i++) {
+    const a = poly[i]!
+    const b = poly[(i + 1) % poly.length]!
+    const sa = side(a)
+    const sb = side(b)
+    if (sa <= 0) out.push(a)
+    if ((sa < 0 && sb > 0) || (sa > 0 && sb < 0)) {
+      const t = sa / (sa - sb)
+      out.push({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t })
+    }
+  }
+  return out
+}
+
+export const path = (poly: readonly Point[]): string =>
+  poly.length === 0 ? '' : `M${poly.map((p) => `${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join('L')}Z`
+
+/** Where a unit standing here may legally go. The rules, not the picture. */
+export function reachableFrom(unit: { type: 'army' | 'fleet'; at: string }): string[] {
+  const out = new Set<string>()
+  if (unit.type === 'army') {
+    for (const to of ARMY[base(unit.at)] ?? []) out.add(base(to))
+  } else {
+    for (const to of FLEET[unit.at] ?? []) out.add(base(to))
+  }
+  return [...out]
+}

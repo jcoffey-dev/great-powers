@@ -42,17 +42,22 @@ other three games use, on a map generated from the topology in
 in Europe -- and everything else is drawn from those and from the adjacency
 rules.
 
-**It draws the graph, not regions, and that was not the first idea.** The
-first idea was Voronoi cells: every point on the board belonging to the
-nearest province, which gives a handsome cut-paper board. It is also wrong.
-Sixty-five pairs that border each other in the rules came out with regions
-that did not touch, and no amount of moving coordinates would fix it, because
-the fault is structural -- provinces here interleave. The Adriatic borders
-Venice with Trieste sitting between their centres; the Atlantic borders North
-Africa around the outside of Spain. Convex cells cannot say that, and a map
-that shows two regions meeting when the rules say they do not is worse than
-an ugly map. It is a map that loses you the game. So adjacency is drawn as
-lines, which say exactly what the rules say and cannot be misread.
+**Territories, with the rules kept out of the picture.** The regions are
+Voronoi cells -- every point belonging to the nearest province -- which
+divides the board with no gaps and no overlaps and looks like a board.
+
+What it cannot do is reproduce every adjacency in the rules, because
+provinces here interleave: the Adriatic borders Venice with Trieste sitting
+between their centres, and the Atlantic borders North Africa round the
+outside of Spain. Convex cells cannot say that.
+
+The wrong lesson to draw from that -- and the one I drew first -- is to give
+up on regions and draw the adjacency graph instead. It is unimpeachable and
+it is not a map; it is circles joined by lines. The right answer is to stop
+asking the picture to carry the rules. **Click a province and exactly the
+provinces its unit may legally reach light up**, taken from the adjacency
+graph itself. The picture is a picture, and the rules answer for themselves
+when they are asked.
 
 **It gets the whole screen.** The other three games live in a four-by-three
 cabinet because the machines they are rebuilding did. This one is not
