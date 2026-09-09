@@ -45,8 +45,6 @@ export interface Outcome {
   bounced: Set<string>
 }
 
-type State = 'unresolved' | 'guessing' | 'resolved'
-
 /**
  * Thrown when a convoy paradox turns up, to start the whole resolution again
  * with that convoy's army held still. Restarting is not elegant and it is
@@ -65,7 +63,7 @@ export function adjudicate(board: Board, orderList: readonly Order[]): Outcome {
   const forced = new Set<string>()
   for (;;) {
     try {
-      return resolveAll(board, orderList, forced)
+      return settle(board, orderList, forced)
     } catch (e) {
       if (!(e instanceof Paradox)) throw e
       const before = forced.size
@@ -76,19 +74,55 @@ export function adjudicate(board: Board, orderList: readonly Order[]): Outcome {
   }
 }
 
+/**
+ * Resolve, then ask the answer to justify itself.
+ *
+ * The resolver guesses, and a guess is only ever tested against the guesses
+ * in force beside it. In a position with several cycles knotted together
+ * that is not always enough: two readings can each be locally consistent,
+ * and the one the search lands on depends on which order it happened to
+ * start from. The document is explicit that there is no straightforward way
+ * to fix this inside the recursion.
+ *
+ * So it is fixed outside it. Run the resolution again, but starting each
+ * order from the answer the last run gave it rather than from `false`. A
+ * reading that is genuinely settled reproduces itself and we stop; one that
+ * was an artefact of where the search began does not, and the next run is
+ * started from somewhere better. Four passes, because a position that has
+ * not agreed with itself by then is oscillating rather than converging, and
+ * the first answer is as good as any.
+ */
+function settle(
+  board: Board,
+  orderList: readonly Order[],
+  forced: ReadonlySet<string>,
+): Outcome {
+  const first = resolveAll(board, orderList, forced)
+  let out = first
+  for (let pass = 0; pass < 4; pass++) {
+    const again = resolveAll(board, orderList, forced, out.success)
+    let agrees = true
+    for (const [p, v] of again.success) if (out.success.get(p) !== v) agrees = false
+    if (agrees) return again
+    out = again
+  }
+  // Still arguing with itself after four passes: oscillating rather than
+  // converging, and the first answer is as good as any of them.
+  return first
+}
+
 function resolveAll(
   board: Board,
   orderList: readonly Order[],
   /** Convoyed armies a paradox has already forced to stand still. */
   forced: ReadonlySet<string>,
+  /** Where to start each order's guess, from a previous run. */
+  seed?: ReadonlyMap<string, boolean>,
 ): Outcome {
   // A unit with no order holds, and so does a unit whose order was refused.
   const { orders, illegal, orderedAway } = validate(board, orderList)
 
-  const state = new Map<string, State>()
   const result = new Map<string, boolean>()
-  const dep: string[] = []
-  for (const p of orders.keys()) state.set(p, 'unresolved')
 
   const orderAt = (p: string) => orders.get(p)
   const unitAt = (p: string) => board.get(p)
@@ -267,8 +301,22 @@ function resolveAll(
     if (o.type === 'hold') return true
 
     if (o.type === 'convoy') {
-      // A convoy carries on unless the fleet is thrown out of the sea.
-      return !isDislodged(p)
+      /*
+       * A convoy carries on unless the fleet is thrown out of the sea -- and
+       * the attackers are adjudicated directly rather than asked through the
+       * resolver, which is the document's own advice (section 5.D).
+       *
+       * Routing this one question through `resolve` makes a convoy's
+       * survival a recorded dependency of every unit attacking it, and the
+       * dependency graph stops being a collection of clean single cycles.
+       * Pandin's paradox is the small example: the English Channel comes to
+       * depend on Wales and Belgium, neither of which is a decision the
+       * paradox turns on, and a guessing algorithm cannot tell which of the
+       * four orders is the one worth guessing about. Skipping the memo here
+       * costs a little recomputation and keeps every cycle simple enough to
+       * settle.
+       */
+      return !movesInto(p).some((q) => adjudicateOne(q))
     }
 
     if (o.type === 'support') {
@@ -308,104 +356,121 @@ function resolveAll(
   // --------------------------------------------------------- the resolver
 
   /**
-   * Kruijswijk's resolver.
+   * Kruijswijk's resolver, in the corrected form the document publishes for
+   * positions with more than one cycle in them.
    *
-   * Guess that an order fails and work out what follows. If nothing depended
-   * on the guess, that is the answer. If something did, guess the other way:
-   * agreeing answers are the answer, and disagreeing ones mean a genuine
-   * cycle, which the backup rule below settles.
+   * The idea is small: guess that an order fails and work out what follows.
+   * If nothing along the way depended on the guess, that is the answer. If
+   * something did, guess the other way -- agreeing answers are the answer,
+   * and disagreeing ones mean a real cycle, which the backup rule settles.
+   *
+   * The corrections are where all the difficulty lives, and both are about
+   * asking the right question:
+   *
+   *   - **`guessBased`** answers "did this order's answer rest on a guess?"
+   *     The obvious substitute -- did the dependency list grow while we were
+   *     away -- is not the same question once several cycles are in play,
+   *     because the list may have grown for somebody else entirely. It is
+   *     saved and restored around every frame so it only ever describes the
+   *     subtree below that frame.
+   *
+   *   - **`hits`** answers "am I the order the whole cycle hangs from?" It
+   *     counts how many times the recursion came back to an order already on
+   *     the stack. Discounting the times it came back to *me*, if the count
+   *     is unchanged then nothing below me is waiting on anything above me,
+   *     and the cycle is mine to settle. Otherwise it belongs to a caller
+   *     and I hand up what I have.
+   *
+   * Getting the second one wrong is what 6.F.28 catches: six convoy
+   * paradoxes arranged in a ring, each a tidy four-order cycle in its own
+   * right. Every one of them settled itself against a caller's provisional
+   * answer and recorded it as final, and the ring they were links in was
+   * never seen at all.
    */
-  const stack: string[] = []
+  const cycle: string[] = []
+  const visited = new Set<string>()
+  const resolved = new Set<string>()
+  let guessBased = false
+  let hits = 0
 
   function resolve(p: string): boolean {
-    const s = state.get(p)
-    if (s === 'resolved') return result.get(p)!
-    if (s === 'guessing') {
-      if (!dep.includes(p)) dep.push(p)
+    if (resolved.has(p)) return result.get(p)!
+
+    // Already named as part of a cycle: its value is a guess, not an answer.
+    if (cycle.includes(p)) {
+      guessBased = true
       return result.get(p)!
     }
 
-    const mark = dep.length
-    /*
-     * Who is already guessing further down the stack.
-     *
-     * This is the difference between settling a cycle and appearing to. Only
-     * the *outermost* order in a cycle may take the two guesses, because its
-     * answer is the one everything else was computed against. An inner order
-     * that finds itself first in the dependency list will otherwise declare
-     * the cycle its own, take both guesses with its callers' provisional
-     * answers held fixed, get the same result twice for that reason, and
-     * record it as settled. The cycle is then invisible: the backup rule
-     * never runs, and the position quietly resolves to whichever of its two
-     * consistent readings the search happened to walk into first.
-     *
-     * 6.F.22 is the case that found this. The English Channel put itself
-     * forward as the head while Edinburgh and London -- both in the same
-     * paradox -- were still on the stack below it.
-     */
-    const below = new Set(stack)
-    stack.push(p)
-    state.set(p, 'guessing')
-    result.set(p, false)
+    // Back round to an order still on the stack. That is a cycle, and this
+    // is the moment it becomes visible.
+    if (visited.has(p)) {
+      cycle.push(p)
+      guessBased = true
+      hits++
+      return result.get(p)!
+    }
+
+    visited.add(p)
+    const wasCycle = cycle.length
+    const wasGuessBased = guessBased
+    const wasHits = hits
+    guessBased = false
+
+    const start = seed?.get(p) ?? false
+    result.set(p, start)
     const first = adjudicateOne(p)
 
-    if (dep.length === mark) {
-      /*
-       * Nothing depended on the guess, so the answer stands -- unless the
-       * order resolved itself while we were away. A nested call can reach
-       * the backup rule, settle this very province, and return; writing the
-       * guess over that answer loses it, and the cycle it was settling
-       * quietly re-forms as a fixed point nobody detects.
-       */
-      stack.pop()
-      if (state.get(p) !== 'resolved') {
-        state.set(p, 'resolved')
-        result.set(p, first)
-      }
-      return result.get(p)!
+    if (!guessBased) {
+      // Nothing under here leaned on a guess, so this is simply the answer.
+      guessBased = wasGuessBased
+      result.set(p, first)
+      resolved.add(p)
+      return first
     }
+
+    // One of the hits was the recursion coming back round to me, which does
+    // not count against being the order the cycle hangs from.
+    if (cycle.includes(p)) hits--
 
     /*
-     * Am I the outermost order of this cycle?
-     *
-     * Two conditions. The cycle has to have come back round to me at all --
-     * otherwise I am merely standing next to one. And nothing anywhere in
-     * the dependency list may still be waiting further down the stack: if
-     * one of my own callers is entangled in this, the answer is theirs to
-     * settle, because their value is the one everything here was computed
-     * against.
-     *
-     * The second test looks at the whole list rather than the part added
-     * since I started, and the difference is the whole of 6.F.28. Six
-     * paradoxes in a ring, each a neat four-order cycle of its own; each one
-     * settled itself locally against a caller's provisional answer and
-     * recorded it as final, and the ring they were links in was never seen.
+     * `hits` says the recursion came back only to me. That is the
+     * document's test and it is not quite enough on its own: an order named
+     * in the cycle that is *still on the stack* is one of my own callers,
+     * and while one of those is waiting the answer is theirs to settle, not
+     * mine. Descendants are removed from `visited` as they return, so
+     * anything left is above me.
      */
-    const cycle = dep.slice(mark)
-    if (!cycle.includes(p) || dep.some((q) => below.has(q))) {
-      stack.pop()
-      dep.push(p)
-      result.set(p, first)
-      return first
+    const callerWaiting = cycle.some((q) => q !== p && visited.has(q))
+
+    if (hits === wasHits && !callerWaiting) {
+      cycle.length = wasCycle
+      result.set(p, !start)
+      const second = adjudicateOne(p)
+
+      if (first === second) {
+        // A cycle, but only one answer in it.
+        cycle.length = wasCycle
+        guessBased = wasGuessBased
+        result.set(p, first)
+        resolved.add(p)
+        return first
+      }
+
+      backup(cycle.slice(wasCycle))
+      cycle.length = wasCycle
+      guessBased = wasGuessBased
+      visited.delete(p)
+      // The backup rule may or may not have settled this one.
+      return resolve(p)
     }
 
-    while (dep.length > mark) state.set(dep.pop()!, 'unresolved')
-
-    state.set(p, 'guessing')
-    result.set(p, true)
-    const second = adjudicateOne(p)
-
-    if (first === second) {
-      while (dep.length > mark) state.set(dep.pop()!, 'unresolved')
-      stack.pop()
-      state.set(p, 'resolved')
-      result.set(p, first)
-      return first
-    }
-
-    stack.pop()
-    backup(mark)
-    return resolve(p)
+    // In a cycle, but not the order it hangs from. Hand up what we have and
+    // remember it, in case somebody asks again before it is settled.
+    if (!cycle.includes(p)) cycle.push(p)
+    result.set(p, first)
+    visited.delete(p)
+    return first
   }
 
   /**
@@ -420,11 +485,8 @@ function resolveAll(
    *     rather than a deduction, which is why it is written down here rather
    *     than buried in the arithmetic.
    */
-  function backup(mark: number) {
-    const cycle = dep.slice(mark)
-    dep.length = mark
-
-    const convoys = cycle.filter((p) => orderAt(p)?.type === 'convoy')
+  function backup(members: readonly string[]) {
+    const convoys = members.filter((p) => orderAt(p)?.type === 'convoy')
 
     if (convoys.length > 0) {
       /*
@@ -451,8 +513,8 @@ function resolveAll(
       // anybody; they all shuffle round, so they all go.
       // A ring of units all moving into each other. Nobody dislodges
       // anybody; they all shuffle round, so they all go.
-      for (const p of cycle) {
-        state.set(p, 'resolved')
+      for (const p of members) {
+        resolved.add(p)
         result.set(p, true)
       }
     }
@@ -461,7 +523,19 @@ function resolveAll(
   // ------------------------------------------------------------------ run
 
   const success = new Map<string, boolean>()
-  for (const p of orders.keys()) success.set(p, resolve(p))
+  for (const p of orders.keys()) {
+    /*
+     * Each order is asked from a clean slate. The bookkeeping above is
+     * scoped to one descent -- an order left named in `cycle` by a frame
+     * that handed its answer upward is meaningless once that descent is
+     * over, and reading it later makes an unrelated order look as though it
+     * rested on a guess when it did not.
+     */
+    cycle.length = 0
+    hits = 0
+    guessBased = false
+    success.set(p, resolve(p))
+  }
   // An order that was never a legal order did not succeed at anything.
   for (const p of illegal) success.set(p, false)
 

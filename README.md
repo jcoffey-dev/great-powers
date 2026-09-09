@@ -107,31 +107,32 @@ published cases is parsed and run.
 
 | Section | | Passing |
 | --- | --- | --- |
-| 6.A - 6.G | movement | 138 / 139 |
+| 6.A - 6.G | movement | 137 / 137 |
 | 6.H | retreating | 18 / 18 |
 | 6.I | building | 7 / 7 |
 | 6.J | civil disorder | 13 / 13 |
+
+All 176 pass.
 
 They are the reason this adjudicator is worth trusting: they found that
 orders were never validated, that the paradox rule did not terminate, that
 civil disorder was measuring the wrong distance, and that five of my own
 hand-written cases rested on a support Paris cannot give.
 
-Three cases are excluded rather than failed. 6.A.6, 6.B.10 and 6.B.11 state
-their setup in prose -- "Germany has a fleet in London" -- and the fixture is
-built from order lines, so it cannot carry a unit nobody ordered.
+Three of the hundred and forty movement cases are excluded rather than
+failed. 6.A.6, 6.B.10 and 6.B.11 state their setup in prose -- "Germany has
+a fleet in London" -- and the fixture is built from order lines, so it
+cannot carry a unit nobody ordered. The other hundred and thirty-seven all
+pass.
 
-One is a known deviation, written down so it is not rediscovered as a
-surprise:
-
-| Case | What it is |
-| --- | --- |
-| 6.F.29 | The butterfly effect. Twenty-seven orders in a ring of six convoy paradoxes, plus one support that unwinds the whole thing -- and the document uses the pair 6.F.28/6.F.29 precisely to show how little it takes. 6.F.28 passes. In 6.F.29 the half of the ring furthest from the extra support comes out right and the half nearest it does not: the resolver settles the first order it reaches while a second free value elsewhere in the ring happens to read the same under both of its guesses, so it declares determinacy it has not earned. Both halves are individually consistent; together they are not. |
+There are no known deviations left.
 
 ### What the failing cases were worth
 
-They found three real faults, which is the whole argument for running
-somebody else's tests rather than only your own.
+They found six real faults, which is the whole argument for running somebody
+else's tests rather than only your own. Every one of them was invisible in
+play: the engine had an answer, the answer looked reasonable, and it was
+wrong.
 
 **The illegal/invalid line (6.A.5, 6.D.8).** The document separates an order
 that is impossible *in this position* from one this position allows that
@@ -167,6 +168,19 @@ still waiting further down the stack, not merely the entries added since it
 started. Six paradoxes in a ring, each a tidy four-order cycle in its own
 right, and each was settling itself locally against a caller's provisional
 answer. The ring they were links in was never seen at all.
+
+**The answer has to agree with itself (6.F.29).** The resolver guesses, and
+a guess is only ever tested against the guesses in force beside it. Where
+several cycles are knotted together that is not enough: two readings can
+each be locally consistent, and the search lands on whichever one its
+starting order leads to. The document is explicit that there is no
+straightforward way to fix this inside the recursion -- so it is fixed
+outside it. The resolution is run again, starting each order from the answer
+the last run gave it. A reading that is genuinely settled reproduces itself;
+one that was an artefact of where the search began does not, and the next
+run starts from somewhere better. Four passes, and a position still arguing
+with itself after that is oscillating rather than converging, so the first
+answer stands.
 
 **A superfluous convoy order (6.G.19).** For a convoy order the fleet has to
 be necessary to some route -- there must be a route, ordered or not, that
