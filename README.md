@@ -1,0 +1,67 @@
+# Great Powers
+
+A browser rebuild of the classic seven-power negotiation game: one human
+against six computer powers, in one sitting.
+
+Not the name you expect, and [NOTICE.md](NOTICE.md) will make the argument at
+length once there is more to notice. The short version is the one the
+starship game already made on this site: the rules are free to rebuild, the
+trademark and the published artwork are not. "Great Powers" is what those
+seven were called at the time.
+
+## What this is, and what it is not
+
+**One human, six computer powers, one sitting.** The original is seven people
+over weeks. A hub with no traffic cannot deliver that, and nobody is going to
+wait months for six strangers — so the other six are played by the machine
+and a game is finished in an evening.
+
+**It still has to be a negotiation game.** A version where you simply write
+orders is a good movement puzzle and not this game. So:
+
+- **Both sides open.** Bots approach you with proposals; you approach them.
+  Neither waits for the other.
+- **On real terms.** Offers are concrete and about this turn or the next few
+  — support this move, keep out of that province, no attack until 1903 — and
+  are accepted or refused on their merits, not by a die roll.
+- **Betrayal is a move, not a bug.** A bot can agree to support you and then
+  not do it, and so can you. Bots remember who kept their word, tell each
+  other, and price you accordingly. That is the game.
+
+The press is **structured rather than free text**: typed offers, deterministic
+reasoning, and no model anywhere in it. That makes betrayal auditable — you
+can read exactly why a power turned on you — and testable, which free text
+would not be.
+
+## The look and the sound
+
+**Cartoony.** Flat cel fills and one heavy outline, the same house style the
+other three games use, on a map generated from the topology in
+`src/game/map.ts` rather than traced from anybody's board.
+
+**The music is not cartoony, and that is the point.** It is 1914: serious,
+and intense. The joke of this game is that something charming to look at is
+the cruellest thing on the site, and the score is what says so.
+
+## The board
+
+Seventy-five provinces, two adjacency graphs — an army walks the land, a
+fleet follows the water — and three provinces with two coasts that do not
+connect, where a fleet has to say which one it is on.
+
+The topology is a fact about a published game and free to use. The artwork is
+not, and there is none here: the map this game draws is generated from the
+data, the way the cave game's dodecahedron is.
+
+`npm test` checks the board against itself. The one that earns its keep is
+symmetry: an adjacency list this size is typed by hand once and wrong in
+three places unless something looks. It found the Skagerrak wired to the
+Baltic on the first run — which would have quietly opened a back door into
+the Baltic and made Denmark worthless.
+
+## Still to build
+
+- the adjudicator, and the DATC cases that prove it
+- the press: offers, memory, and the arithmetic of betrayal
+- the bots' actual play
+- the map, the orders, the music
