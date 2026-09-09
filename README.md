@@ -107,7 +107,7 @@ published cases is parsed and run.
 
 | Section | | Passing |
 | --- | --- | --- |
-| 6.A - 6.G | movement | 133 / 139 |
+| 6.A - 6.G | movement | 136 / 139 |
 | 6.H | retreating | 18 / 18 |
 | 6.I | building | 7 / 7 |
 | 6.J | civil disorder | 13 / 13 |
@@ -121,14 +121,45 @@ Three cases are excluded rather than failed. 6.A.6, 6.B.10 and 6.B.11 state
 their setup in prose -- "Germany has a fleet in London" -- and the fixture is
 built from order lines, so it cannot carry a unit nobody ordered.
 
-Six are known deviations, written down so they are not rediscovered as
+Three are known deviations, written down so they are not rediscovered as
 surprises:
 
 | Case | What it is |
 | --- | --- |
-| 6.A.5, 6.D.8 | The document distinguishes an `invalid` order from an `illegal` one, and the two cases disagree about whether a unit whose move was refused keeps its hold support. Guessing at the distinction cost four passing cases to buy one, so it is left until it can be read properly. |
-| 6.F.22, 6.F.28, 6.F.29 | Second and sixth order paradoxes. The resolver settles them by Szykman's rule and reaches a different answer than the document's. These are positions nobody assembles by accident. |
-| 6.G.19 | Whether an unnecessary fleet in a convoy chain signals intent. The document notes this one depends on which edition of the rules is used. |
+| 6.F.28, 6.F.29 | Sixth order paradoxes: the same twenty-six orders with one extra support between them, which the document uses to show that the answer swings on it. The resolver gets five of the six sub-paradoxes right in both and the sixth wrong, and gives the same answer to both positions when the point is that they differ. These are positions nobody assembles by accident. |
+| 6.G.19 | Whether an unnecessary fleet in a convoy chain signals intent. The document gives three different answers by edition, calls the question "a little bit pedantic", and advises that web adjudicators should not offer the order at all -- which is the line this one takes. |
+
+### What the failing cases were worth
+
+They found three real faults, which is the whole argument for running
+somebody else's tests rather than only your own.
+
+**The illegal/invalid line (6.A.5, 6.D.8).** The document separates an order
+that is impossible *in this position* from one this position allows that
+merely did not come off. The first is ignored and the unit is holding like
+any other; the second means the unit tried to leave and cannot be propped up
+where it stands. An army sent across water with a fleet on the route and no
+convoy ordered is the second (6.D.8); the identical order with nobody in the
+sea at all is the first (6.D.32). Guessing at this once cost four passing
+cases to buy one. Reading it properly cost nothing.
+
+**A support that only looked like a hold (6.A.5).** "Supports A Yorkshire"
+and "Supports A Yorkshire - Yorkshire" are the same shape once parsed, and
+the case turns on the difference: the first holds a unit down, the second
+supports a move nobody can legally make. The extractor now keeps the
+distinction; it was losing it.
+
+**The head of a cycle (6.F.22).** Kruijswijk's resolver guesses that an order
+fails, sees what follows, and guesses the other way. Only the *outermost*
+order in a cycle may do that, because its answer is the one everything else
+was computed against. This engine let any order that reached the dependency
+list first declare the cycle its own -- and an inner one takes both guesses
+with its callers' provisional answers held fixed, gets the same result twice
+for that reason, and records it as settled. The cycle then becomes
+invisible: the backup rule never runs, and the position resolves to
+whichever of its two consistent readings the search walked into first. It
+had been doing that on every paradox and getting away with it, because on a
+first-order paradox both readings agree.
 
 Sections H, I and J -- retreating and the winter -- have engine code but no
 harness yet; their cases are shaped differently and need one.

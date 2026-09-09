@@ -28,8 +28,14 @@ export interface Unit {
 export type Order =
   | { type: 'hold'; at: string; power?: Power }
   | { type: 'move'; at: string; to: string; viaConvoy?: boolean; power?: Power }
-  /** `from === to` is a support to hold. */
-  | { type: 'support'; at: string; from: string; to: string; power?: Power }
+  /**
+   * `from === to` is a support to hold, unless `ofMove` says a destination
+   * was actually written out. The difference is invisible in the shape of
+   * the order and decides 6.A.5: "Supports A Yorkshire" holds a unit down,
+   * while "Supports A Yorkshire - Yorkshire" supports a move nobody can
+   * legally make, and is therefore no order at all.
+   */
+  | { type: 'support'; at: string; from: string; to: string; ofMove?: boolean; power?: Power }
   | { type: 'convoy'; at: string; from: string; to: string; power?: Power }
 
 /** Units by province. One unit to a province, whatever its coast. */
@@ -133,6 +139,22 @@ export interface Validated {
   illegal: Set<string>
   /** Provinces whose unit was told to move, legally or not. */
   orderedToMove: Set<string>
+  /**
+   * Provinces whose unit was told to leave and could have.
+   *
+   * The document draws a line here that decides two cases (issue 4.E.1). An
+   * order that is impossible *in this position* but would be possible in
+   * another is **illegal**: it is ignored, the unit is simply holding, and
+   * it may be held down by hold support. An order that this position allows
+   * and that merely did not come off is **invalid**: the unit tried to
+   * leave, and a unit trying to leave cannot be propped up where it stands.
+   *
+   * The two cases are the same order with one piece moved. An army sent
+   * across water with a fleet standing on the route and no convoy ordered
+   * was given a legal order that failed (6.D.8). The identical order with
+   * nobody in the sea at all was never an order (6.D.32).
+   */
+  orderedAway: Set<string>
 }
 
 export function validate(board: Board, given: readonly Order[]): Validated {
@@ -197,16 +219,30 @@ export function validate(board: Board, given: readonly Order[]): Validated {
     }
     const supported = orders.get(base(order.from))
     const wasRefused = refused.has(base(order.from))
-    if (base(order.from) !== base(order.to) && wasRefused && supported?.type !== 'move') {
+    // A destination written out makes this a support of a move, even when
+    // the destination is where the unit already is -- and there is no legal
+    // move to your own province, so there is nothing there to support.
+    const ofMove = order.ofMove === true || base(order.from) !== base(order.to)
+    if (ofMove && wasRefused && supported?.type !== 'move') {
       refused.add(at)
       continue
     }
     orders.set(at, ok)
   }
 
+  const orderedAway = new Set<string>()
+  for (const order of given) {
+    if (order.type !== 'move') continue
+    const at = base(order.at)
+    const unit = board.get(at)
+    if (!unit || (order.power && order.power !== unit.power)) continue
+    if (orders.get(at)?.type === 'move') orderedAway.add(at)
+    else if (unit.type === 'army' && crewedRoute(board, unit.at, order.to)) orderedAway.add(at)
+  }
+
   for (const at of refused) if (!orders.has(at)) illegal.add(at)
   for (const [p] of board) if (!orders.has(p)) orders.set(p, { type: 'hold', at: p })
-  return { orders, illegal, orderedToMove }
+  return { orders, illegal, orderedToMove, orderedAway }
 }
 
 /** The order as it will be obeyed, with the coast filled in, or null. */
@@ -328,6 +364,49 @@ export function seaRouteExists(
     for (const next of seas(sea)) queue.push([next, used || next === through])
   }
   return false
+}
+
+/**
+ * The coasts a chain of fleets standing on the board can reach from these
+ * seas.
+ *
+ * Whoever owns them and whatever they were ordered to do. This is a question
+ * about what the position makes possible, not about what anybody asked for,
+ * and it is the difference between an order that is illegal and one that is
+ * merely invalid.
+ */
+export function coastsThroughFleets(board: Board, from: readonly string[]): Set<string> {
+  const crewed = (id: string) => board.get(base(id))?.type === 'fleet'
+  const out = new Set<string>()
+  const seen = new Set<string>()
+  const queue = [...from]
+
+  while (queue.length > 0) {
+    const sea = queue.shift()!
+    if (seen.has(sea)) continue
+    seen.add(sea)
+    for (const next of FLEET[sea] ?? []) {
+      const p = base(next)
+      if (PROVINCES[p]!.terrain === 'sea') {
+        if (crewed(p)) queue.push(p)
+      } else if (PROVINCES[p]!.terrain === 'coast') {
+        out.add(p)
+      }
+    }
+  }
+  return out
+}
+
+/** Could the fleets now on the board carry an army from here to there? */
+export function crewedRoute(board: Board, from: string, to: string): boolean {
+  const start = base(from)
+  const end = base(to)
+  if (start === end) return false
+  if (PROVINCES[start]?.terrain !== 'coast' || PROVINCES[end]?.terrain !== 'coast') return false
+  const seas = coastalSeas(start)
+    .map(base)
+    .filter((sea) => board.get(sea)?.type === 'fleet')
+  return coastsThroughFleets(board, seas).has(end)
 }
 
 /** The seas a coastal province touches, whichever coast they are on. */

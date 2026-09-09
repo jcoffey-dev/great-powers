@@ -1,6 +1,6 @@
 import { reachableFrom } from './layout'
-import { FLEET, PROVINCES, base } from './map'
-import { coastalSeas, type Board, type Unit } from './orders'
+import { PROVINCES, base } from './map'
+import { coastalSeas, coastsThroughFleets, type Board, type Unit } from './orders'
 
 /**
  * What each half of an order may be clicked on.
@@ -51,42 +51,6 @@ export function supportTargets(board: Board, unit: Unit, from: string): Set<stri
   return out
 }
 
-/**
- * The coasts a chain of crewed seas touches, starting from these.
- *
- * The model the whole convoy offering is built on: a sea counts if there is
- * a fleet standing in it, whoever owns it, and the chain runs as far as the
- * fleets do. A fleet that has not been ordered to convoy still counts -- it
- * is a thing that could be arranged, which is what the negotiation is for,
- * and the adjudicator will bounce the crossing if it is not.
- *
- * This is deliberately not the question the rules ask when they *judge* a
- * convoy order, which is whether water could ever get there. That one says
- * yes to most of Europe: it would offer thirty provinces because a chain of
- * fleets is conceivable, which is worse than offering none.
- */
-function coastsReached(board: Board, from: readonly string[]): Set<string> {
-  const crewed = (id: string) => board.get(base(id))?.type === 'fleet'
-  const out = new Set<string>()
-  const seen = new Set<string>()
-  const queue = [...from]
-
-  while (queue.length > 0) {
-    const sea = queue.shift()!
-    if (seen.has(sea)) continue
-    seen.add(sea)
-    for (const next of FLEET[sea] ?? []) {
-      const p = base(next)
-      if (PROVINCES[p]!.terrain === 'sea') {
-        if (crewed(p)) queue.push(p)
-      } else if (PROVINCES[p]!.terrain === 'coast') {
-        out.add(p)
-      }
-    }
-  }
-  return out
-}
-
 /** The seas off this coast that have a fleet in them. */
 const putToSea = (board: Board, coast: string): string[] =>
   coastalSeas(coast)
@@ -97,7 +61,7 @@ const putToSea = (board: Board, coast: string): string[] =>
 export function convoyDestinations(board: Board, unit: Unit): Set<string> {
   const here = base(unit.at)
   if (unit.type !== 'army' || PROVINCES[here]?.terrain !== 'coast') return new Set()
-  const out = coastsReached(board, putToSea(board, here))
+  const out = coastsThroughFleets(board, putToSea(board, here))
   out.delete(here)
   return out
 }
@@ -112,7 +76,7 @@ export function convoyDestinations(board: Board, unit: Unit): Set<string> {
 export function convoyable(board: Board, unit: Unit): Set<string> {
   const sea = base(unit.at)
   if (unit.type !== 'fleet' || PROVINCES[sea]?.terrain !== 'sea') return new Set()
-  const ashore = coastsReached(board, [sea])
+  const ashore = coastsThroughFleets(board, [sea])
   const out = new Set<string>()
   for (const coast of ashore) {
     if (board.get(coast)?.type === 'army') out.add(coast)
@@ -124,7 +88,7 @@ export function convoyable(board: Board, unit: Unit): Set<string> {
 export function convoyTargets(board: Board, unit: Unit, from: string): Set<string> {
   const sea = base(unit.at)
   if (unit.type !== 'fleet' || PROVINCES[sea]?.terrain !== 'sea') return new Set()
-  const out = coastsReached(board, [sea])
+  const out = coastsThroughFleets(board, [sea])
   out.delete(base(from))
   return out
 }

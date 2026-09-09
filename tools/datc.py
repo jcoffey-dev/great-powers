@@ -153,8 +153,14 @@ def main() -> int:
                     order = {'type': 'convoy', 'at': at,
                              'from': place(m2.group(2)), 'to': place(m2.group(3))}
                 elif m2 := re.match(r'^(.*?)\s+Supports\s+[AF]\s+(.*?)\s+-\s+(.*)$', rest, re.I):
+                    # A destination was written out. Worth keeping even when it
+                    # is the mover's own province: "Supports A Yorkshire" and
+                    # "Supports A Yorkshire - Yorkshire" come out identically
+                    # otherwise, and 6.A.5 turns on the difference between
+                    # them -- the first holds a unit down, the second supports
+                    # a move nobody can legally make.
                     at = place(m2.group(1))
-                    order = {'type': 'support', 'at': at,
+                    order = {'type': 'support', 'at': at, 'ofMove': True,
                              'from': place(m2.group(2)), 'to': place(m2.group(3))}
                 elif m2 := re.match(r'^(.*?)\s+Supports\s+[AF]\s+(.*)$', rest, re.I):
                     at = place(m2.group(1))

@@ -83,7 +83,7 @@ function resolveAll(
   forced: ReadonlySet<string>,
 ): Outcome {
   // A unit with no order holds, and so does a unit whose order was refused.
-  const { orders, illegal } = validate(board, orderList)
+  const { orders, illegal, orderedAway } = validate(board, orderList)
 
   const state = new Map<string, State>()
   const result = new Map<string, boolean>()
@@ -236,14 +236,13 @@ function resolveAll(
     if (o?.type === 'move') return resolve(dest) ? 0 : 1
     /*
      * A unit told to move cannot be supported where it stands, and the first
-     * branch above covers that. What is *not* settled here is the unit whose
-     * move order was refused outright: 6.D.8 says it loses its hold support
-     * too, while 6.D.28 to 6.D.32 say a unit in much the same position keeps
-     * it. The difference is the document's distinction between an order that
-     * is `invalid` and one that is `illegal`, which I have not pinned down,
-     * and guessing at it cost four passing cases to buy one. Left alone
-     * until it can be read properly rather than inferred.
+     * branch above covers the ones whose orders survived. This covers the
+     * rest: an order this position allowed and that merely did not come off
+     * still means the unit tried to leave. An order the position never
+     * allowed is ignored, and that unit is holding like any other and may be
+     * held down. See `orderedAway` for which is which.
      */
+    if (orderedAway.has(dest)) return 1
     return 1 + supportsToHold(dest)
   }
 
@@ -316,6 +315,8 @@ function resolveAll(
    * agreeing answers are the answer, and disagreeing ones mean a genuine
    * cycle, which the backup rule below settles.
    */
+  const stack: string[] = []
+
   function resolve(p: string): boolean {
     const s = state.get(p)
     if (s === 'resolved') return result.get(p)!
@@ -325,18 +326,55 @@ function resolveAll(
     }
 
     const mark = dep.length
+    /*
+     * Who is already guessing further down the stack.
+     *
+     * This is the difference between settling a cycle and appearing to. Only
+     * the *outermost* order in a cycle may take the two guesses, because its
+     * answer is the one everything else was computed against. An inner order
+     * that finds itself first in the dependency list will otherwise declare
+     * the cycle its own, take both guesses with its callers' provisional
+     * answers held fixed, get the same result twice for that reason, and
+     * record it as settled. The cycle is then invisible: the backup rule
+     * never runs, and the position quietly resolves to whichever of its two
+     * consistent readings the search happened to walk into first.
+     *
+     * 6.F.22 is the case that found this. The English Channel put itself
+     * forward as the head while Edinburgh and London -- both in the same
+     * paradox -- were still on the stack below it.
+     */
+    const below = new Set(stack)
+    stack.push(p)
     state.set(p, 'guessing')
     result.set(p, false)
     const first = adjudicateOne(p)
 
     if (dep.length === mark) {
-      state.set(p, 'resolved')
-      result.set(p, first)
-      return first
+      /*
+       * Nothing depended on the guess, so the answer stands -- unless the
+       * order resolved itself while we were away. A nested call can reach
+       * the backup rule, settle this very province, and return; writing the
+       * guess over that answer loses it, and the cycle it was settling
+       * quietly re-forms as a fixed point nobody detects.
+       */
+      stack.pop()
+      if (state.get(p) !== 'resolved') {
+        state.set(p, 'resolved')
+        result.set(p, first)
+      }
+      return result.get(p)!
     }
 
-    if (dep[mark] !== p) {
-      // Somebody above us is the one really guessing; report and let them ask.
+    /*
+     * Am I the outermost order of this cycle?
+     *
+     * Only if the cycle came back round to me at all, and only if none of
+     * its other members is still waiting further down the stack. Anything
+     * else reports what it has and lets the one below ask.
+     */
+    const cycle = dep.slice(mark)
+    if (!cycle.includes(p) || cycle.some((q) => below.has(q))) {
+      stack.pop()
       dep.push(p)
       result.set(p, first)
       return first
@@ -350,11 +388,13 @@ function resolveAll(
 
     if (first === second) {
       while (dep.length > mark) state.set(dep.pop()!, 'unresolved')
+      stack.pop()
       state.set(p, 'resolved')
       result.set(p, first)
       return first
     }
 
+    stack.pop()
     backup(mark)
     return resolve(p)
   }
