@@ -117,9 +117,31 @@ surprises:
 Sections H, I and J -- retreating and the winter -- have engine code but no
 harness yet; their cases are shaped differently and need one.
 
+## The bots
+
+`src/game/evaluate.ts` prices a position and `src/game/bot.ts` plays it.
+Everything a power does comes out of two numbers, and they are deliberately
+few: when a power turns on you, you are entitled to know what it thought it
+was getting and be furious about the price rather than confused by it.
+`chooseOrders` returns its reasoning as a list of sentences for exactly that.
+
+Centres are the only thing that counts. Units are how you get them and are
+worth nothing in themselves -- a power with eight units and four centres is
+losing, and will have four units by the winter.
+
+Two things the tests had to teach it. It garrisons a threatened centre it is
+already standing on, because scoring only *moves* had it defending Berlin by
+marching the Munich garrison there -- abandoning one centre to save another
+of identical value. And it never shoves at its own countryman, which has no
+strength at all and is two units wasting a turn on each other.
+
+The price of breaking a promise is **how far this power trusts the partner**,
+not how far the partner trusts it. Pricing it the other way round gives a
+power that has been lied to four times a high cost of retaliating, because it
+has been scrupulous itself and is still well thought of, which is exactly
+backwards. An ally who has already betrayed you is worth nothing to protect.
+
 ## Still to build
 
-- the adjudicator, and the DATC cases that prove it
-- the press: offers, memory, and the arithmetic of betrayal
-- the bots' actual play
-- the map, the orders, the music
+- proposals: bots opening a negotiation rather than only answering one
+- the map, the orders, the music, the battle sound, the four endings
