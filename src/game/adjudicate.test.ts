@@ -69,9 +69,11 @@ describe('strength', () => {
   })
 
   it('dislodges when the attack is supported and the defence is not', () => {
+    // Ruhr, not Paris. A unit may only support into a province it could have
+    // gone to itself, and Paris does not border Munich.
     const r = run(
-      [A('france', 'bur'), A('france', 'par'), A('germany', 'mun')],
-      [mv('bur', 'mun'), sup('par', 'bur', 'mun'), hold('mun')],
+      [A('france', 'bur'), A('france', 'ruh'), A('germany', 'mun')],
+      [mv('bur', 'mun'), sup('ruh', 'bur', 'mun'), hold('mun')],
     )
     expect(r.success.get('bur')).toBe(true)
     expect(r.dislodged.get('mun')?.attackedFrom).toBe('bur')
@@ -79,8 +81,8 @@ describe('strength', () => {
 
   it('needs more than equal support, because a tie is a bounce', () => {
     const r = run(
-      [A('france', 'bur'), A('france', 'par'), A('germany', 'mun'), A('germany', 'ruh')],
-      [mv('bur', 'mun'), sup('par', 'bur', 'mun'), hold('mun'), sup('ruh', 'mun', 'mun')],
+      [A('france', 'bur'), A('france', 'tyr'), A('germany', 'mun'), A('germany', 'kie')],
+      [mv('bur', 'mun'), sup('tyr', 'bur', 'mun'), hold('mun'), sup('kie', 'mun', 'mun')],
     )
     expect(r.success.get('bur')).toBe(false)
     expect(r.dislodged.size).toBe(0)
@@ -132,20 +134,20 @@ describe('cutting support', () => {
     // Picardy, not Ruhr: Ruhr does not border Paris, and an attack that
     // cannot arrive cuts nothing.
     const r = run(
-      [A('france', 'bur'), A('france', 'par'), A('germany', 'mun'), A('germany', 'pic')],
-      [mv('bur', 'mun'), sup('par', 'bur', 'mun'), hold('mun'), mv('pic', 'par')],
+      [A('france', 'bur'), A('france', 'ruh'), A('germany', 'mun'), A('germany', 'kie')],
+      [mv('bur', 'mun'), sup('ruh', 'bur', 'mun'), hold('mun'), mv('kie', 'ruh')],
     )
-    expect(r.success.get('par')).toBe(false)
+    expect(r.success.get('ruh')).toBe(false)
     expect(r.success.get('bur')).toBe(false)
   })
 
   it('is not cut by an attack that could never arrive', () => {
-    // The same order from Ruhr, which does not border Paris at all.
+    // Paris does not border Ruhr, so that order is no order at all.
     const r = run(
-      [A('france', 'bur'), A('france', 'par'), A('germany', 'mun'), A('germany', 'ruh')],
-      [mv('bur', 'mun'), sup('par', 'bur', 'mun'), hold('mun'), mv('ruh', 'par')],
+      [A('france', 'bur'), A('france', 'ruh'), A('germany', 'mun'), A('germany', 'par')],
+      [mv('bur', 'mun'), sup('ruh', 'bur', 'mun'), hold('mun'), mv('par', 'ruh')],
     )
-    expect(r.success.get('par')).toBe(true)
+    expect(r.success.get('ruh')).toBe(true)
     expect(r.dislodged.get('mun')).toBeDefined()
   })
 
@@ -153,20 +155,20 @@ describe('cutting support', () => {
     // Munich attacks the supporter; Munich is what the support is aimed at,
     // so the support holds and Munich is thrown out by it.
     const r = run(
-      [A('france', 'bur'), A('france', 'par'), A('germany', 'mun')],
-      [mv('bur', 'mun'), sup('par', 'bur', 'mun'), mv('mun', 'par')],
+      [A('france', 'bur'), A('france', 'ruh'), A('germany', 'mun')],
+      [mv('bur', 'mun'), sup('ruh', 'bur', 'mun'), mv('mun', 'ruh')],
     )
-    expect(r.success.get('par')).toBe(true)
+    expect(r.success.get('ruh')).toBe(true)
     expect(r.success.get('bur')).toBe(true)
     expect(r.dislodged.get('mun')).toBeDefined()
   })
 
   it('is cut by being thrown out, however the support was going', () => {
     const r = run(
-      [A('france', 'bur'), A('france', 'par'), A('germany', 'mun'), A('germany', 'pic'), A('germany', 'bre')],
-      [mv('bur', 'mun'), sup('par', 'bur', 'mun'), hold('mun'), mv('pic', 'par'), sup('bre', 'pic', 'par')],
+      [A('france', 'bur'), A('france', 'ruh'), A('germany', 'mun'), A('germany', 'kie'), A('germany', 'hol')],
+      [mv('bur', 'mun'), sup('ruh', 'bur', 'mun'), hold('mun'), mv('kie', 'ruh'), sup('hol', 'kie', 'ruh')],
     )
-    expect(r.dislodged.get('par')).toBeDefined()
+    expect(r.dislodged.get('ruh')).toBeDefined()
     expect(r.success.get('bur')).toBe(false)
   })
 })

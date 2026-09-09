@@ -34,8 +34,8 @@ function movement(units: Unit[], orders: Order[]) {
 describe('after the moving', () => {
   it('puts the winner in and takes the loser off the board', () => {
     const { outcome, after } = movement(
-      [A('france', 'bur'), A('france', 'par'), A('germany', 'mun')],
-      [mv('bur', 'mun'), sup('par', 'bur', 'mun'), hold('mun')],
+      [A('france', 'bur'), A('france', 'ruh'), A('germany', 'mun')],
+      [mv('bur', 'mun'), sup('ruh', 'bur', 'mun'), hold('mun')],
     )
     expect(after.get('mun')?.power).toBe('france')
     expect(after.has('bur')).toBe(false)
@@ -51,8 +51,8 @@ describe('after the moving', () => {
 describe('where a beaten unit may go', () => {
   const setup = () =>
     movement(
-      [A('france', 'bur'), A('france', 'par'), A('germany', 'mun')],
-      [mv('bur', 'mun'), sup('par', 'bur', 'mun'), hold('mun')],
+      [A('france', 'bur'), A('france', 'ruh'), A('germany', 'mun')],
+      [mv('bur', 'mun'), sup('ruh', 'bur', 'mun'), hold('mun')],
     )
 
   it('will not go back the way the attacker came', () => {
@@ -62,8 +62,8 @@ describe('where a beaten unit may go', () => {
 
   it('will not go where somebody is standing', () => {
     const { outcome, after } = setup()
-    // Paris is where the supporting army still is -- and out of reach anyway.
-    expect(retreatOptions(after, outcome, 'mun')).not.toContain('par')
+    // Ruhr is where the supporting army still stands.
+    expect(retreatOptions(after, outcome, 'mun')).not.toContain('ruh')
     expect(retreatOptions(after, outcome, 'mun')).toContain('tyr')
   })
 
@@ -71,14 +71,14 @@ describe('where a beaten unit may go', () => {
     const { outcome, after } = movement(
       [
         A('france', 'bur'),
-        A('france', 'par'),
+        A('france', 'ruh'),
         A('germany', 'mun'),
         A('austria', 'vie'),
         A('italy', 'ven'),
       ],
       [
         mv('bur', 'mun'),
-        sup('par', 'bur', 'mun'),
+        sup('ruh', 'bur', 'mun'),
         hold('mun'),
         mv('vie', 'tyr'),
         mv('ven', 'tyr'),
@@ -101,8 +101,10 @@ describe('where a beaten unit may go', () => {
   it('is disbanded when there is nowhere at all', () => {
     // Boxed into a corner: Portugal, attacked from Spain, with the sea taken.
     const { outcome, after } = movement(
-      [A('france', 'spa'), A('france', 'gas'), F('england', 'mao'), A('italy', 'por')],
-      [mv('spa', 'por'), sup('gas', 'spa', 'por'), hold('mao'), hold('por')],
+      // Only Spain touches Portugal by land, so the support has to come off
+      // the water -- which is also the only other way out of Portugal.
+      [A('france', 'spa'), F('france', 'mao'), A('italy', 'por')],
+      [mv('spa', 'por'), sup('mao', 'spa', 'por'), hold('por')],
     )
     expect(outcome.dislodged.has('por')).toBe(true)
     expect(retreatOptions(after, outcome, 'por')).toEqual([])
@@ -114,8 +116,8 @@ describe('where a beaten unit may go', () => {
 describe('retreating', () => {
   const setup = () =>
     movement(
-      [A('france', 'bur'), A('france', 'par'), A('germany', 'mun')],
-      [mv('bur', 'mun'), sup('par', 'bur', 'mun'), hold('mun')],
+      [A('france', 'bur'), A('france', 'ruh'), A('germany', 'mun')],
+      [mv('bur', 'mun'), sup('ruh', 'bur', 'mun'), hold('mun')],
     )
 
   it('puts a unit down where it was told', () => {
@@ -130,7 +132,7 @@ describe('retreating', () => {
     const { outcome, after } = movement(
       [
         A('france', 'bur'),
-        A('france', 'par'),
+        A('france', 'ruh'),
         A('germany', 'mun'),
         A('italy', 'ven'),
         A('italy', 'tri'),
@@ -138,7 +140,7 @@ describe('retreating', () => {
       ],
       [
         mv('bur', 'mun'),
-        sup('par', 'bur', 'mun'),
+        sup('ruh', 'bur', 'mun'),
         hold('mun'),
         mv('ven', 'tyr'),
         sup('tri', 'ven', 'tyr'),
