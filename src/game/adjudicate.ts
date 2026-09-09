@@ -28,6 +28,12 @@ export interface Dislodgement {
   unit: Unit
   /** Where the attacker came from. A unit may not retreat back into it. */
   attackedFrom: string
+  /**
+   * The attacker came over water. That lifts the restriction above: a unit
+   * put ashore by a convoy never passed through the ground between, so there
+   * is nothing to say the loser cannot fall back that way.
+   */
+  byConvoy: boolean
 }
 
 export interface Outcome {
@@ -323,7 +329,11 @@ export function adjudicate(board: Board, orderList: readonly Order[]): Outcome {
   for (const p of board.keys()) {
     if (!isDislodged(p)) continue
     const attacker = movesInto(p).find((q) => success.get(q))!
-    dislodged.set(p, { unit: unitAt(p)!, attackedFrom: attacker })
+    dislodged.set(p, {
+      unit: unitAt(p)!,
+      attackedFrom: attacker,
+      byConvoy: isConvoyed(attacker),
+    })
   }
 
   /*
