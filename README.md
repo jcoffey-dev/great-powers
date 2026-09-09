@@ -37,7 +37,22 @@ would not be.
 
 **Cartoony.** Flat cel fills and one heavy outline, the same house style the
 other three games use, on a map generated from the topology in
-`src/game/map.ts` rather than traced from anybody's board.
+`src/game/map.ts` rather than traced from anybody's board. The coordinates in
+`src/game/layout.ts` are placed by hand -- roughly where each province falls
+in Europe -- and everything else is drawn from those and from the adjacency
+rules.
+
+**It draws the graph, not regions, and that was not the first idea.** The
+first idea was Voronoi cells: every point on the board belonging to the
+nearest province, which gives a handsome cut-paper board. It is also wrong.
+Sixty-five pairs that border each other in the rules came out with regions
+that did not touch, and no amount of moving coordinates would fix it, because
+the fault is structural -- provinces here interleave. The Adriatic borders
+Venice with Trieste sitting between their centres; the Atlantic borders North
+Africa around the outside of Spain. Convex cells cannot say that, and a map
+that shows two regions meeting when the rules say they do not is worse than
+an ugly map. It is a map that loses you the game. So adjacency is drawn as
+lines, which say exactly what the rules say and cannot be misread.
 
 **It gets the whole screen.** The other three games live in a four-by-three
 cabinet because the machines they are rebuilding did. This one is not

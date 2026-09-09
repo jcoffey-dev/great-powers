@@ -1,0 +1,133 @@
+/* =====================================================================
+   Great Powers.
+
+   Cartoony: flat fills, one heavy outline on everything, no gradients
+   anywhere near the board. And it takes the whole window -- the other games
+   on this site live in a four-by-three cabinet because the machines they
+   rebuild did, and this one is not rebuilding a machine.
+   ===================================================================== */
+
+.app {
+  height: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 260px;
+  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-areas: 'head head' 'map side';
+  gap: 10px 18px;
+  padding: clamp(10px, 2vw, 22px);
+}
+
+header { grid-area: head; }
+
+h1 {
+  margin: 0;
+  font-size: clamp(1.4rem, 3.2vw, 2.2rem);
+  font-weight: 900;
+  letter-spacing: -0.02em;
+  color: #ffd479;
+  -webkit-text-stroke: 3px #241a10;
+  paint-order: stroke fill;
+}
+
+header p { margin: 2px 0 0; font-size: 0.9rem; }
+
+.dim { color: #a3b3c9; }
+
+.map-wrap {
+  grid-area: map;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.board {
+  width: 100%;
+  height: 100%;
+  border: 3px solid #241a10;
+  border-radius: 16px;
+  background: #6ea3c9;
+}
+
+.sea-bed { fill: #6ea3c9; }
+
+.edges line {
+  stroke: #241a10;
+  stroke-width: 2;
+  opacity: 0.28;
+}
+
+.province rect,
+.province circle {
+  stroke: #241a10;
+  stroke-width: 3;
+  cursor: pointer;
+}
+
+.province.sea circle { stroke-opacity: 0.55; }
+
+.province .pip {
+  fill: #fff6e0;
+  stroke: #241a10;
+  stroke-width: 2;
+}
+
+.province .label {
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-anchor: middle;
+  pointer-events: none;
+}
+
+.province.picked rect,
+.province.picked circle {
+  stroke: #ffd479;
+  stroke-width: 5;
+}
+
+.unit path {
+  stroke: #241a10;
+  stroke-width: 2.5;
+  stroke-linejoin: round;
+}
+
+/* --- the side ------------------------------------------------------- */
+
+.side {
+  grid-area: side;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.powers { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 5px; }
+
+.powers li {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-weight: 700;
+  font-size: 0.92rem;
+}
+
+.swatch {
+  width: 15px;
+  height: 15px;
+  border: 2px solid #241a10;
+  border-radius: 4px;
+}
+
+.count { margin-left: auto; font-variant-numeric: tabular-nums; color: #a3b3c9; }
+
+.picked h2 { margin: 0 0 2px; font-size: 1rem; }
+.picked p { margin: 0; font-size: 0.86rem; line-height: 1.45; }
+
+@media (max-width: 780px) {
+  .app {
+    grid-template-columns: 1fr;
+    grid-template-areas: 'head' 'map' 'side';
+  }
+}

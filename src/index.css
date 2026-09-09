@@ -1,0 +1,15 @@
+:root {
+  font-synthesis: none;
+  -webkit-font-smoothing: antialiased;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+
+html, body, #root { height: 100%; margin: 0; }
+
+body {
+  background: radial-gradient(120% 90% at 50% 0%, #23324a 0%, #16202f 55%, #0d141d 100%);
+  color: #f2e9d8;
+  font-family: ui-rounded, "Nunito", "Avenir Next", "Segoe UI", system-ui, sans-serif;
+}
