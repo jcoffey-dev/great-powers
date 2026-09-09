@@ -317,3 +317,164 @@ function threatFrom(pos: Position, them: Power, us: Power): number {
   }
   return n
 }
+
+// -------------------------------------------------------------- speaking up
+
+export interface Overture {
+  proposal: Proposal
+  /** What the power says when it asks. Shown to whoever is being asked. */
+  says: string
+}
+
+/** At most this many approaches a turn, so six powers are not a mailstorm. */
+const MOUTHFUL = 3
+
+/**
+ * What this power goes and asks for, unprompted.
+ *
+ * A bot that only ever answers is not negotiating, it is a form to fill in.
+ * These come out of the plan it has already made: it works out what it wants
+ * to do this turn, notices where that is not going to work on its own, and
+ * goes looking for somebody who could make it work.
+ *
+ * In order of how much a deal is worth having:
+ *
+ *   - **help taking something defended.** The commonest ask in the game and
+ *     the one that decides most provinces.
+ *   - **a quiet border**, where a province sits between us that neither of us
+ *     can hold and both of us would rather not garrison.
+ *   - **peace outright**, when a neighbour is over my centres and my own
+ *     ambitions are somewhere else entirely.
+ *
+ * Nothing here promises the power will keep any of it. It is asking because
+ * it wants something now; whether it still wants it when the orders are due
+ * is settled separately, in `settleUp`, and the answer is sometimes no.
+ */
+export function propose(pos: Position, mind: Mind, turn: number): Overture[] {
+  const out: Overture[] = []
+  const plan = chooseOrders(pos, { ...mind, agreements: [] }, turn)
+  const believe = (them: Power) => trust(mind.ledger, mind.power, them, turn)
+
+  const id = (to: Power, what: string) => `${mind.power}-${to}-${turn}-${what}`
+
+  // --- help me take this -------------------------------------------------
+  for (const order of plan.orders) {
+    if (order.type !== 'move') continue
+    const target = base(order.to)
+    if (desire(pos, mind.power, order.to) < 100) continue
+    // Already covered by one of my own units, so there is nothing to ask.
+    if (plan.orders.some((o) => o.type === 'support' && base(o.to) === target)) continue
+
+    const holding = pos.board.get(target)
+    if (!holding || holding.power === mind.power) continue
+
+    const helpers = [...pos.board.entries()]
+      .filter(([, u]) => u.power !== mind.power && u.power !== holding.power)
+      .filter(([, u]) => canStep(u, order.to))
+      .sort((a, b) => believe(b[1].power) - believe(a[1].power))
+
+    const helper = helpers[0]
+    if (!helper) continue
+
+    out.push({
+      proposal: {
+        id: id(helper[1].power, `sup-${target}`),
+        from: mind.power,
+        to: helper[1].power,
+        turn,
+        deal: {
+          kind: 'support',
+          mover: mind.power,
+          helper: helper[1].power,
+          from: order.at,
+          to: order.to,
+        },
+      },
+      says: `Support my ${base(order.at)} into ${target} and it is mine this turn.`,
+    })
+  }
+
+  // --- let us both stay out of it ---------------------------------------
+  for (const them of neighbours(pos, mind.power)) {
+    if (out.some((o) => o.proposal.to === them)) continue
+    const between = borderland(pos, mind.power, them).find(
+      (p) => !plan.orders.some((o) => o.type === 'move' && base(o.to) === p),
+    )
+    if (!between) continue
+
+    out.push({
+      proposal: {
+        id: id(them, `dmz-${between}`),
+        from: mind.power,
+        to: them,
+        turn,
+        deal: { kind: 'dmz', province: between },
+      },
+      says: `Neither of us needs ${between}. Leave it empty and we both look elsewhere.`,
+    })
+  }
+
+  // --- peace, then ------------------------------------------------------
+  for (const them of neighbours(pos, mind.power)) {
+    if (out.some((o) => o.proposal.to === them)) continue
+    if (threatFrom(pos, them, mind.power) < 2) continue
+    // Not while I am the one moving on them.
+    const attacking = plan.orders.some(
+      (o) => o.type === 'move' && pos.board.get(base(o.to))?.power === them,
+    )
+    if (attacking) continue
+
+    out.push({
+      proposal: {
+        id: id(them, 'peace'),
+        from: mind.power,
+        to: them,
+        turn,
+        deal: { kind: 'peace' },
+      },
+      says: `You are on my border in force and I have business elsewhere. Peace this turn?`,
+    })
+  }
+
+  return out.slice(0, MOUTHFUL)
+}
+
+/** Powers whose units are within reach of anything of ours. */
+function neighbours(pos: Position, us: Power): Power[] {
+  const near = new Set<Power>()
+  for (const [, unit] of pos.board) {
+    if (unit.power === us) continue
+    for (const [at, mine] of pos.board) {
+      if (mine.power !== us) continue
+      if (canStep(unit, at)) near.add(unit.power)
+    }
+    for (const [id, p] of Object.entries(PROVINCES)) {
+      if (p.sc && pos.own.get(id) === us && canStep(unit, id)) near.add(unit.power)
+    }
+  }
+  return [...near]
+}
+
+/**
+ * Provinces both of us can reach and neither of us owns: the ground a border
+ * war starts over, and the ground worth agreeing to leave alone.
+ */
+function borderland(pos: Position, us: Power, them: Power): string[] {
+  const reach = (who: Power) => {
+    const out = new Set<string>()
+    for (const [, unit] of pos.board) {
+      if (unit.power !== who) continue
+      for (const [id, p] of Object.entries(PROVINCES)) {
+        if (canStep(unit, id)) out.add(id)
+        else if (p.coasts?.some((c) => canStep(unit, `${id}/${c}`))) out.add(id)
+      }
+    }
+    return out
+  }
+  const ours = reach(us)
+  const theirs = reach(them)
+  return [...ours]
+    .filter((p) => theirs.has(p))
+    .filter((p) => pos.own.get(p) !== us && pos.own.get(p) !== them)
+    .sort()
+}

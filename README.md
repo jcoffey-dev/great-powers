@@ -141,7 +141,27 @@ power that has been lied to four times a high cost of retaliating, because it
 has been scrupulous itself and is still well thought of, which is exactly
 backwards. An ally who has already betrayed you is worth nothing to protect.
 
+Bots open negotiations rather than only answering them. `propose()` works
+from the plan the power has already made: it decides what it wants to do this
+turn, notices where that will not work alone, and goes looking for somebody
+who could make it work. Help taking something defended, first; then a quiet
+border over ground neither of them owns; then peace outright, when a
+neighbour is over your centres and your ambitions are elsewhere. Three
+approaches a turn at most, because six powers all talking at once is a
+mailstorm rather than a negotiation.
+
+Each overture carries what the power actually says, so it can be put in front
+of a human as a message rather than as a form.
+
+**A power will offer a quiet border to somebody it is attacking somewhere
+else**, and that is deliberate. Germany marching on French Belgium while
+suggesting both sides leave Burgundy alone is not a lie and not incoherent: a
+promise about Burgundy is a promise about Burgundy, and it will be kept to
+the letter by somebody who is robbing you at the same moment. A bot that
+refused to make that offer would be playing a politer game than this one. It
+will not, however, ask the power it is attacking to *help*, or offer it peace
+while the orders say otherwise.
+
 ## Still to build
 
-- proposals: bots opening a negotiation rather than only answering one
 - the map, the orders, the music, the battle sound, the four endings

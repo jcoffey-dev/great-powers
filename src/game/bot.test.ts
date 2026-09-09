@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { chooseOrders, consider, type Mind } from './bot'
+import { chooseOrders, consider, propose, type Mind } from './bot'
 import { desire, standing, type Position } from './evaluate'
 import { boardFrom, type Unit } from './orders'
 import type { Power } from './map'
@@ -244,5 +244,117 @@ describe('a bot being asked', () => {
     }
     expect(consider(pos, mind('germany', [], ledger), offer, 4).reply).toBe('refuse')
     expect(consider(pos, mind('germany'), offer, 4).reply).toBe('accept')
+  })
+})
+
+describe('a bot doing the asking', () => {
+  it('asks for help taking something it cannot take alone', () => {
+    // Germany wants Belgium; France is sitting in it; England has a fleet
+    // that could push. Germany has nobody of its own to spare.
+    const pos = at(
+      [A('germany', 'ruh'), A('france', 'bel'), F('england', 'nth')],
+      [['bel', 'france']],
+    )
+    const overtures = propose(pos, mind('germany'), 1)
+    const ask = overtures.find((o) => o.proposal.deal.kind === 'support')
+
+    expect(ask).toBeDefined()
+    expect(ask!.proposal.to).toBe('england')
+    expect(ask!.says).toContain('bel')
+  })
+
+  it('never asks the power it is attacking to help it', () => {
+    const pos = at([A('germany', 'ruh'), A('france', 'bel')], [['bel', 'france']])
+    const overtures = propose(pos, mind('germany'), 1)
+    expect(
+      overtures.some((o) => o.proposal.deal.kind === 'support' && o.proposal.to === 'france'),
+    ).toBe(false)
+  })
+
+  it('never offers peace to somebody it is in the middle of attacking', () => {
+    const pos = at([A('germany', 'ruh'), A('france', 'bel'), A('france', 'bur')], [['bel', 'france']])
+    const overtures = propose(pos, mind('germany'), 1)
+    expect(
+      overtures.some((o) => o.proposal.deal.kind === 'peace' && o.proposal.to === 'france'),
+    ).toBe(false)
+  })
+
+  it('will offer a quiet border to somebody it is attacking somewhere else', () => {
+    /*
+     * Germany marches on French Belgium and in the same breath suggests
+     * leaving Burgundy alone. That is not a lie and it is not incoherent: a
+     * promise about Burgundy is a promise about Burgundy. It is the sharpest
+     * thing in this game -- an offer that will be kept to the letter by
+     * somebody who is robbing you at the same moment -- and a bot that
+     * refused to make it would be playing a politer game than this one.
+     */
+    const pos = at([A('germany', 'ruh'), A('france', 'bel')], [['bel', 'france']])
+    const overtures = propose(pos, mind('germany'), 1)
+    const dmz = overtures.find((o) => o.proposal.deal.kind === 'dmz')
+    expect(dmz?.proposal.to).toBe('france')
+    expect(dmz!.proposal.deal.kind === 'dmz' && dmz!.proposal.deal.province).not.toBe('bel')
+  })
+
+  it('asks whoever it believes most', () => {
+    const pos = at(
+      [A('germany', 'ruh'), A('france', 'bel'), A('england', 'hol'), A('italy', 'bur')],
+      [['bel', 'france']],
+    )
+    // England has lied repeatedly; Italy has not.
+    let ledger = emptyLedger()
+    const board = boardFrom([A('germany', 'ruh'), A('england', 'hol')])
+    for (const turn of [1, 2, 3]) {
+      ledger = remember(
+        ledger,
+        judge(
+          deal('germany', 'england', { kind: 'dmz', province: 'bel' }, turn),
+          new Map([
+            ['germany' as Power, [{ type: 'hold' as const, at: 'ruh' }]],
+            ['england' as Power, [{ type: 'move' as const, at: 'hol', to: 'bel' }]],
+          ]),
+          board,
+        ),
+      )
+    }
+    const ask = propose(pos, mind('germany', [], ledger), 4).find(
+      (o) => o.proposal.deal.kind === 'support',
+    )
+    expect(ask!.proposal.to).toBe('italy')
+  })
+
+  it('offers a quiet border over ground neither of them owns', () => {
+    const pos = at([A('germany', 'mun'), A('austria', 'tyr')])
+    const overtures = propose(pos, mind('germany'), 1)
+    const dmz = overtures.find((o) => o.proposal.deal.kind === 'dmz')
+    expect(dmz).toBeDefined()
+    expect(dmz!.proposal.to).toBe('austria')
+    expect(dmz!.says).toContain('empty')
+  })
+
+  it('does not offer to leave alone a province it is walking into', () => {
+    const pos = at([A('germany', 'ruh'), A('france', 'bur')])
+    const overtures = propose(pos, mind('germany'), 1)
+    const plan = chooseOrders(pos, mind('germany'), 1)
+    const taking = plan.orders
+      .filter((o) => o.type === 'move')
+      .map((o) => (o as { to: string }).to.split('/')[0]!)
+    for (const o of overtures) {
+      if (o.proposal.deal.kind !== 'dmz') continue
+      expect(taking).not.toContain(o.proposal.deal.province)
+    }
+  })
+
+  it('does not open its mouth more than three times a turn', () => {
+    const pos = at([
+      A('germany', 'mun'),
+      A('germany', 'ber'),
+      A('germany', 'kie'),
+      A('france', 'bur'),
+      A('austria', 'tyr'),
+      A('russia', 'sil'),
+      A('russia', 'pru'),
+      A('england', 'hol'),
+    ])
+    expect(propose(pos, mind('germany'), 1).length).toBeLessThanOrEqual(3)
   })
 })
