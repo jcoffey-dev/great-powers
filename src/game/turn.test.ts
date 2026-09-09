@@ -211,9 +211,10 @@ describe('the winter', () => {
     expect(buildOptions(own, boardFrom([]), 'germany').some((o) => o.at === 'ber')).toBe(false)
   })
 
-  it('removes what is furthest from home when nobody says', () => {
+  it('removes what is furthest from the centres it owns when nobody says', () => {
     const board = boardFrom([A('germany', 'mun'), A('germany', 'ber'), A('germany', 'spa')])
-    expect(civilDisorderDisbands(board, 'germany', 1)[0]!.at).toBe('spa')
+    const own = openingOwnership()
+    expect(civilDisorderDisbands(own, board, 'germany', 1)[0]!.at).toBe('spa')
   })
 
   it('knows an eliminated power and a solo when it sees one', () => {

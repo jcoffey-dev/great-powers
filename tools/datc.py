@@ -70,18 +70,69 @@ def main() -> int:
         end = heads[idx + 1][0] if idx + 1 < len(heads) else len(lines)
         m = re.match(r'\s*(6\.[A-Z]\.\d+)\.\s+TEST CASE,\s*(.*)', head)
         case = {'id': m.group(1), 'title': m.group(2).strip().lower(),
-                'units': [], 'orders': [], 'expect': {}}
+                'units': [], 'orders': [], 'expect': {},
+                'retreats': [], 'expectRetreat': {},
+                'adjust': [], 'expectAdjust': {}, 'own': {}}
 
         power = None
         ok = True
+        # Cases in section H run a movement phase and then a retreat phase.
+        phase = 'move'
         for line in lines[start + 1:end]:
             s = line.strip()
             if not s:
                 continue
+            if s.upper() == 'RETREATS':
+                phase = 'retreat'
+                continue
+
             p = s.rstrip(':').strip().lower()
             if s.endswith(':') and p in POWERS:
                 power = p
                 continue
+
+            # "Germany owns SC Kiel" / "Germany owns A Prussia": the winter
+            # cases state the position this way rather than by ordering it.
+            if m3 := re.match(r'^(\w+)\s+owns\s+(SC|A|F)\s+(.*?)\s*$', s, re.I):
+                who = m3.group(1).lower()
+                if who not in POWERS:
+                    continue
+                try:
+                    where = place(m3.group(3))
+                except KeyError as e:
+                    unknown.add(str(e)); ok = False; break
+                if m3.group(2).upper() == 'SC':
+                    case['own'][where.split('/')[0]] = who
+                else:
+                    kind = 'army' if m3.group(2).upper() == 'A' else 'fleet'
+                    case['units'].append({'power': who, 'type': kind, 'at': where})
+                    case['own'].setdefault(where.split('/')[0], who) if False else None
+                continue
+
+            # "Build A Kiel" / "Disband F Gulf of Lyon" / "Remove A Paris".
+            if m3 := re.match(r'^(Build|Disband|Remove|Automatic disband)\s+([AF])\s+(.*?)\s*$', s, re.I):
+                body, marks = m3.group(3), []
+                while True:
+                    m4 = re.search(r',?\s*(' + '|'.join(ANNOTATIONS) + r')\s*$', body, re.I)
+                    if not m4:
+                        break
+                    marks.insert(0, m4.group(1).lower())
+                    body = body[:m4.start()].rstrip()
+                try:
+                    where = place(body)
+                except KeyError as e:
+                    unknown.add(str(e)); ok = False; break
+                kind = 'army' if m3.group(2).upper() == 'A' else 'fleet'
+                verb = m3.group(1).lower()
+                case['adjust'].append({
+                    'type': 'build' if verb == 'build'
+                    else 'auto' if verb == 'automatic disband' else 'disband',
+                    'at': where, 'unit': kind, 'power': power,
+                })
+                if marks:
+                    case['expectAdjust'][where.split('/')[0]] = marks
+                continue
+
             if not re.match(r'^[AF]\s', s) or power is None:
                 continue
 
@@ -124,12 +175,17 @@ def main() -> int:
                 ok = False
                 break
 
-            case['units'].append({'power': power, 'type': unit_type, 'at': at})
-            case['orders'].append({**order, 'power': power})
-            if marks:
-                case['expect'][at.split('/')[0]] = marks
+            if phase == 'move':
+                case['units'].append({'power': power, 'type': unit_type, 'at': at})
+                case['orders'].append({**order, 'power': power})
+                if marks:
+                    case['expect'][at.split('/')[0]] = marks
+            else:
+                case['retreats'].append({**order, 'power': power})
+                if marks:
+                    case['expectRetreat'][at.split('/')[0]] = marks
 
-        if ok and case['orders']:
+        if ok and (case['orders'] or case['adjust']):
             cases.append(case)
 
     if unknown:

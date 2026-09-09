@@ -86,11 +86,20 @@ the Baltic and made Denmark worthless.
 
 `tools/datc.py` turns the Diplomacy Adjudicator Test Cases into
 `src/game/datc.json` -- the orders and their annotated outcomes, not the
-document's prose, which is Lucas Kruijswijk's writing. **133 of 136 movement
-cases pass.** They are the reason this adjudicator is worth trusting: they
-found that orders were never validated, that the paradox rule did not
-terminate, and that five of my own hand-written cases rested on a support
-Paris cannot give.
+document's prose, which is Lucas Kruijswijk's writing. Every one of the 176
+published cases is parsed and run.
+
+| Section | | Passing |
+| --- | --- | --- |
+| 6.A - 6.G | movement | 133 / 139 |
+| 6.H | retreating | 18 / 18 |
+| 6.I | building | 7 / 7 |
+| 6.J | civil disorder | 13 / 13 |
+
+They are the reason this adjudicator is worth trusting: they found that
+orders were never validated, that the paradox rule did not terminate, that
+civil disorder was measuring the wrong distance, and that five of my own
+hand-written cases rested on a support Paris cannot give.
 
 Three cases are excluded rather than failed. 6.A.6, 6.B.10 and 6.B.11 state
 their setup in prose -- "Germany has a fleet in London" -- and the fixture is

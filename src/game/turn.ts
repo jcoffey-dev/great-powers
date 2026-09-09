@@ -178,26 +178,48 @@ export function buildOptions(own: Ownership, board: Board, power: Power): BuildO
  * what matters is that it is the same arbitrary everywhere, so two
  * adjudicators never disagree about a game nobody was playing.
  */
-export function civilDisorderDisbands(board: Board, power: Power, howMany: number): Unit[] {
-  const homes = Object.entries(PROVINCES)
-    .filter(([, p]) => p.home === power)
-    .map(([id]) => id)
+export function civilDisorderDisbands(
+  own: Ownership,
+  board: Board,
+  power: Power,
+  howMany: number,
+): Unit[] {
+  /*
+   * Distance is measured to the centres this power *owns*, not to the ones
+   * it was born with. A Russia driven out of Moscow and holding Sweden
+   * measures from Sweden -- home is where the supply is, and a unit far from
+   * any of it is the one that is no longer doing anything.
+   */
+  const homes = [...own.entries()].filter(([, p]) => p === power).map(([id]) => id)
 
-  const distance = (unit: Unit): number => {
-    const graph = unit.type === 'army' ? ARMY : FLEET
-    const start = unit.type === 'army' ? base(unit.at) : unit.at
-    const seen = new Set([start])
-    let edge = [start]
-    for (let step = 0; edge.length > 0; step++) {
-      if (edge.some((id) => homes.includes(base(id)))) return step
-      const next: string[] = []
-      for (const id of edge) {
-        for (const to of graph[id] ?? []) if (!seen.has(to)) (seen.add(to), next.push(to))
-      }
-      edge = next
+  /*
+   * Distance is measured over the whole map, not over the graph the unit
+   * itself moves on.
+   *
+   * That looks wrong for about a minute. An army counts sea provinces it
+   * would need convoying across -- Albania is two steps from Naples over the
+   * Adriatic, not unreachable -- and a fleet counts inland provinces it could
+   * never enter, so the Baltic is two steps from Warsaw. Both are what the
+   * published cases require, and both make sense once you see what is being
+   * measured: not how the unit would get home, but how far out of the way it
+   * is. A fleet in the Baltic is still in the middle of Russia's business. A
+   * fleet in the North Atlantic is not.
+   */
+  const seen = new Set<string>()
+  let edge = homes.map(base)
+  const away = new Map<string, number>()
+  for (let step = 0; edge.length > 0; step++) {
+    const next: string[] = []
+    for (const id of edge) {
+      if (seen.has(id)) continue
+      seen.add(id)
+      away.set(id, step)
+      for (const to of neighbours(id)) if (!seen.has(to)) next.push(to)
     }
-    return Number.MAX_SAFE_INTEGER
+    edge = next
   }
+
+  const distance = (unit: Unit): number => away.get(base(unit.at)) ?? Number.MAX_SAFE_INTEGER
 
   return [...board.values()]
     .filter((u) => u.power === power)
@@ -219,4 +241,75 @@ export const eliminated = (own: Ownership, power: Power): boolean => centreCount
 export function soloWinner(own: Ownership): Power | null {
   for (const power of POWERS) if (centreCount(own, power) >= 18) return power
   return null
+}
+
+export type AdjustOrder =
+  | { type: 'build'; at: string; unit: UnitType }
+  | { type: 'disband'; at: string; unit?: UnitType }
+
+export interface AdjustResult {
+  board: Board
+  /** Orders that were refused, by province. */
+  illegal: Set<string>
+}
+
+/**
+ * Builds and disbands, taken one at a time in the order they were given.
+ *
+ * One at a time matters. A power owed one unit that orders three builds has
+ * not made three mistakes, it has made two -- the first order is carried out
+ * and the rest are refused. Working out the whole set and rejecting it
+ * wholesale would be tidier and would punish a slip far harder than the
+ * rules do.
+ */
+export function applyAdjustments(
+  own: Ownership,
+  board: Board,
+  power: Power,
+  given: readonly AdjustOrder[],
+): AdjustResult {
+  const next: Board = new Map(board)
+  const illegal = new Set<string>()
+  const owed = adjustmentFor(own, next, power)
+  let done = 0
+
+  for (const order of given) {
+    const at = base(order.at)
+
+    if (order.type === 'build') {
+      const allowed = buildOptions(own, next, power).some(
+        (o) => o.at === order.at && o.type === order.unit,
+      )
+      if (!allowed || done >= owed) {
+        illegal.add(at)
+        continue
+      }
+      next.set(at, { power, type: order.unit, at: order.at })
+      done++
+      continue
+    }
+
+    const unit = next.get(at)
+    const removable =
+      unit !== undefined &&
+      unit.power === power &&
+      (order.unit === undefined || unit.type === order.unit)
+    if (!removable || done >= -owed) {
+      illegal.add(at)
+      continue
+    }
+    next.delete(at)
+    done++
+  }
+
+  return { board: next, illegal }
+}
+
+/** Everywhere touching a province, by land or by water, whoever could go. */
+function neighbours(id: string): string[] {
+  const out = new Set<string>(ARMY[id] ?? [])
+  const coasts = PROVINCES[id]?.coasts
+  const keys = coasts ? coasts.map((c) => `${id}/${c}`) : [id]
+  for (const key of keys) for (const to of FLEET[key] ?? []) out.add(base(to))
+  return [...out]
 }
