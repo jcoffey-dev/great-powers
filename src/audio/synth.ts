@@ -371,6 +371,46 @@ export class Synth {
     }
   }
 
+  /**
+   * Dice on a table, for the start of a game.
+   *
+   * There are no dice in Diplomacy and that is the joke: this is the sound
+   * of every other board game you have played, and the last one you will
+   * hear before finding out that nothing here is luck.
+   *
+   * Two of them, tumbling. A die is a handful of short bright knocks at
+   * uneven spacing, slowing as it loses energy, and then it stops -- so the
+   * gaps grow and the knocks quieten, which between them is the whole
+   * illusion.
+   */
+  dice() {
+    const ctx = this.ensure()
+    const at = ctx.currentTime + 0.01
+
+    for (const [die, lead] of [0, 0.07].entries()) {
+      let t = at + lead
+      let gap = 0.045
+      for (let i = 0; i < 11; i++) {
+        const knock = ctx.createBufferSource()
+        knock.buffer = this.noiseBuffer
+        knock.playbackRate.value = 1.4 + die * 0.2
+        const bp = ctx.createBiquadFilter()
+        bp.type = 'bandpass'
+        bp.frequency.value = 1500 + ((i * 7 + die * 11) % 5) * 260
+        bp.Q.value = 3
+        const env = ctx.createGain()
+        const gain = 0.11 * (1 - i / 12)
+        env.gain.setValueAtTime(gain, t)
+        env.gain.exponentialRampToValueAtTime(0.0001, t + 0.03)
+        knock.connect(bp).connect(env).connect(this.sfxBus)
+        knock.start(t)
+        knock.stop(t + 0.04)
+        t += gap
+        gap *= 1.16
+      }
+    }
+  }
+
   // -------------------------------------------------------------- the war
 
   /**

@@ -1,14 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import {
-  botOrders,
-  negotiate,
-  newGame,
-  resolveBuilds,
-  resolveOrders,
-  resolveRetreats,
-  turnOf,
-  type Game,
-} from './game'
+import { askForDraw, askToConcede, botOrders, negotiate, newGame, resign, resolveBuilds, resolveOrders, resolveRetreats, turnOf, type Game } from './game'
 import { POWERS, type Power } from './map'
 import { centreCount, unitCount } from './turn'
 import type { Order } from './orders'
@@ -210,5 +201,66 @@ describe('the press, over a turn', () => {
     const g = { ...newGame(), agreements: [deal(0)] }
     const after = resolveOrders(g, PLAYER, [{ type: 'hold', at: 'vie', power: 'austria' }])
     expect(look(after.ledger, 'russia', 'austria').broken).toBe(0)
+  })
+})
+
+describe('giving up', () => {
+  it('leaves the units on the board, holding', () => {
+    // The whole point. A resigned Austria is still centres somebody has to
+    // go and take; letting them evaporate would hand the game to whoever
+    // happened to be next door.
+    const before = newGame()
+    const after = resign(before, 'austria')
+    expect(after.board.size).toBe(before.board.size)
+    expect(after.resigned).toContain('austria')
+
+    const played = resolveOrders(after, 'england', [])
+    for (const [at, unit] of before.board) {
+      if (unit.power !== 'austria') continue
+      expect(played.board.get(at)?.power, `${at} should not have moved`).toBe('austria')
+    }
+  })
+
+  it('cannot be done twice, or after the game is over', () => {
+    const once = resign(newGame(), 'austria')
+    expect(resign(once, 'austria').resigned).toHaveLength(1)
+    expect(resign({ ...once, phase: 'over' }, 'italy').resigned).toHaveLength(1)
+  })
+
+  it('is refused a draw by a power that is still winning', () => {
+    const g = newGame()
+    const own = new Map(g.own)
+    for (const p of ['bud', 'tri', 'ser', 'gre', 'rum', 'bul', 'ven', 'mun']) {
+      own.set(p, 'austria')
+    }
+    const { game, verdicts } = askForDraw({ ...g, own }, 'england')
+    expect(verdicts.find((v) => v.power === 'austria')?.agree).toBe(false)
+    expect(game.phase).toBe('orders')
+  })
+
+  it('is refused by everybody at the opening, which is the right answer', () => {
+    // Three centres each and Russia on four. Nobody is out of it in 1901,
+    // so nobody agrees to end it, and a game that could be drawn on the
+    // first turn would not be worth playing.
+    const { game, verdicts } = askForDraw(newGame(), 'austria')
+    expect(verdicts.every((v) => !v.agree)).toBe(true)
+    expect(game.phase).toBe('orders')
+  })
+
+  it('is granted once the board has left everybody else behind', () => {
+    const g = newGame()
+    const own = new Map(g.own)
+    // Austria on nine; the rest on three or four and out of reach.
+    for (const p of ['ser', 'gre', 'rum', 'bul', 'ven', 'mun']) own.set(p, 'austria')
+    const { game, verdicts } = askForDraw({ ...g, own }, 'austria')
+    expect(verdicts.every((v) => v.agree)).toBe(true)
+    expect(game.phase).toBe('over')
+    expect(game.drawn.length).toBeGreaterThan(1)
+  })
+
+  it('will not hand the game to somebody who has not won it', () => {
+    const { game } = askToConcede(newGame(), 'austria', 'russia')
+    expect(game.phase).toBe('orders')
+    expect(game.winner).toBeNull()
   })
 })

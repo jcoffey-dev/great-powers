@@ -26,6 +26,7 @@ import {
   type Ownership,
   type RetreatOrder,
 } from './turn'
+import { carried, onConcession, onDraw, type Verdict } from './concede'
 import { buildsSounded, movesSounded, retreatsSounded, type Cue } from './sound'
 
 /**
@@ -86,6 +87,17 @@ export interface Game {
   drawn: Power[]
   /** Powers with no centres left. They stay on the list, at nothing. */
   out: Power[]
+  /**
+   * Powers that gave up.
+   *
+   * They do not leave the board. A resigned power goes into civil disorder:
+   * it holds everything, waives its builds and pays units off as it loses
+   * centres, which is what the rules already say happens to an absent
+   * player. That matters to everybody else -- a resigned Austria is still
+   * eleven centres somebody has to go and take, and letting it evaporate
+   * would hand the game to whoever happened to be next to it.
+   */
+  resigned: Power[]
 }
 
 /** Turns are counted from the opening, so a deal can name one. */
@@ -111,10 +123,83 @@ export function newGame(): Game {
     winner: null,
     drawn: [],
     out: [],
+    resigned: [],
   }
 }
 
 const alive = (g: Game): Power[] => POWERS.filter((p) => !g.out.includes(p))
+
+/** Still playing: on the board, and still interested. */
+const playing = (g: Game): Power[] => alive(g).filter((p) => !g.resigned.includes(p))
+
+/**
+ * A power gives up.
+ *
+ * Unilateral, because nobody is entitled to anybody's attention. The board
+ * keeps the units: from here they hold, build nothing, and are paid off as
+ * the centres go. See `concede.ts`.
+ */
+export function resign(g: Game, power: Power): Game {
+  if (g.resigned.includes(power) || g.out.includes(power) || g.phase === 'over') return g
+  return {
+    ...g,
+    resigned: [...g.resigned, power],
+    log: [
+      ...g.log,
+      `${power[0]!.toUpperCase()}${power.slice(1)} gives up. Its units hold where they stand.`,
+    ],
+  }
+}
+
+/**
+ * A draw, put to the surviving powers.
+ *
+ * One refusal is enough, which is the whole point: being able to end the
+ * game by asking would be worth more than any alliance in it.
+ */
+export function askForDraw(g: Game, asking: Power): { game: Game; verdicts: Verdict[] } {
+  const verdicts = alive(g)
+    .filter((p) => p !== asking && !g.resigned.includes(p))
+    .map((p) => onDraw(g.own, p))
+  if (!carried(verdicts)) {
+    const no = verdicts.filter((v) => !v.agree)
+    return { game: { ...g, log: [...g.log, ...no.map((v) => v.why)] }, verdicts }
+  }
+  const drawn = alive(g)
+  return {
+    game: {
+      ...g,
+      phase: 'over',
+      drawn,
+      log: [...g.log, `A draw is agreed between ${drawn.join(', ')}.`],
+    },
+    verdicts,
+  }
+}
+
+/** The same question about handing the game to whoever is winning. */
+export function askToConcede(
+  g: Game,
+  asking: Power,
+  to: Power,
+): { game: Game; verdicts: Verdict[] } {
+  const verdicts = alive(g)
+    .filter((p) => p !== asking && !g.resigned.includes(p))
+    .map((p) => onConcession(g.own, p, to))
+  if (!carried(verdicts)) {
+    const no = verdicts.filter((v) => !v.agree)
+    return { game: { ...g, log: [...g.log, ...no.map((v) => v.why)] }, verdicts }
+  }
+  return {
+    game: {
+      ...g,
+      phase: 'over',
+      winner: to,
+      log: [...g.log, `${to[0]!.toUpperCase()}${to.slice(1)} is conceded the game.`],
+    },
+    verdicts,
+  }
+}
 
 /**
  * The talking, before the orders.
@@ -138,12 +223,14 @@ export function negotiate(g: Game, player: Power): { game: Game; asked: Overture
   const agreements: Agreement[] = []
   const asked: Overture[] = []
 
-  for (const from of alive(g)) {
+  // Nobody makes approaches to a power that has stopped answering, and a
+  // power that has given up makes none.
+  for (const from of playing(g)) {
     if (from === player) continue
     const mind: Mind = { power: from, ledger: g.ledger, agreements }
     for (const overture of propose(pos, mind, turn)) {
       const to = overture.proposal.to
-      if (g.out.includes(to)) continue
+      if (g.out.includes(to) || g.resigned.includes(to)) continue
       if (to === player) {
         asked.push(overture)
         continue
@@ -161,7 +248,7 @@ export function negotiate(g: Game, player: Power): { game: Game; asked: Overture
 /** What each computer power intends this turn. */
 export function botOrders(g: Game, player: Power): Map<Power, Order[]> {
   const out = new Map<Power, Order[]>()
-  for (const power of alive(g)) {
+  for (const power of playing(g)) {
     if (power === player) continue
     const mind: Mind = { power, ledger: g.ledger, agreements: g.agreements }
     out.set(power, chooseOrders({ board: g.board, own: g.own }, mind, turnOf(g)).orders)
@@ -335,6 +422,11 @@ export function resolveBuilds(
       board = applyAdjustments(g.own, board, power, [...playerAdjust]).board
       continue
     }
+
+    // A power that has given up waives everything it is owed. It still pays
+    // off what it can no longer keep, below: civil disorder is not a way to
+    // hold a board you have stopped defending.
+    if (owed > 0 && g.resigned.includes(power)) continue
 
     if (owed > 0) {
       // Build at home, wherever there is room. A power that cannot use all

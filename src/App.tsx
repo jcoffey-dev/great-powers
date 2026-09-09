@@ -5,12 +5,16 @@ import { synth } from './audio/synth'
 import { Board, COLOURS, POWER_NAMES } from './components/Board'
 import { BuildPanel, RetreatPanel } from './components/AdjustPanel'
 import { OrderPanel, type Step } from './components/OrderPanel'
+import { Landing } from './components/Landing'
 import { PressPanel } from './components/PressPanel'
 import { consider, type Overture } from './game/bot'
 import {
   LAST_YEAR,
   negotiate,
   newGame,
+  askForDraw,
+  askToConcede,
+  resign,
   resolveBuilds,
   resolveOrders,
   resolveRetreats,
@@ -48,6 +52,9 @@ export default function App() {
   const [retreats, setRetreats] = useState<Map<string, RetreatOrder>>(new Map())
   const [builds, setBuilds] = useState<AdjustOrder[]>([])
   const [sound, setSound] = useState(true)
+  const [started, setStarted] = useState(false)
+  const [said, setSaid] = useState<string[]>([])
+  const [sure, setSure] = useState(false)
 
   // ------------------------------------------------------------ audio glue
 
@@ -57,7 +64,7 @@ export default function App() {
    * before that is silent whatever the toggle says, which is the rule and
    * not a bug.
    */
-  const started = useRef(false)
+  const woken = useRef(false)
 
   /*
    * Which piece is playing is not decoration: spring is the march, autumn is
@@ -67,8 +74,8 @@ export default function App() {
   const tune = game.phase === 'over' ? ARMISTICE : game.season === 'spring' ? THE_FRONT : THE_PUSH
 
   const wake = useCallback(() => {
-    if (started.current || !sound) return
-    started.current = true
+    if (woken.current || !sound) return
+    woken.current = true
     synth.ensure()
     synth.playTune(tune, false)
   }, [sound, tune])
@@ -79,7 +86,7 @@ export default function App() {
   }, [sound])
 
   useEffect(() => {
-    if (started.current) synth.playTune(tune, false)
+    if (woken.current) synth.playTune(tune, false)
   }, [tune])
 
   /** The ending, once, when there is one. */
@@ -99,12 +106,12 @@ export default function App() {
   const talked = useRef<string>('')
   useEffect(() => {
     const key = `${power}-${game.year}-${game.season}-${game.phase}`
-    if (game.phase !== 'orders' || talked.current === key) return
+    if (!started || game.phase !== 'orders' || talked.current === key) return
     talked.current = key
     const round = negotiate(game, power)
     setGame(round.game)
     setAsked(round.asked)
-  }, [game, power])
+  }, [game, power, started])
 
   const own = game.own
   const units = game.board
@@ -253,6 +260,10 @@ export default function App() {
   const advance = useCallback(
     (from: Game): Game => {
       let g = from
+      // A player who has resigned or been eliminated is not asked anything
+      // again. The turns still have to happen: the rest of the board is
+      // playing for a win and the result is worth watching.
+      const done = g.resigned.includes(power) || g.out.includes(power)
       /*
        * Each phase reports its own sounds, so a submission that runs through
        * three of them would otherwise arrive with only the last one's. They
@@ -264,13 +275,13 @@ export default function App() {
           const mineBeaten = [...(g.outcome?.dislodged.values() ?? [])].some(
             (d) => d.unit.power === power,
           )
-          if (mineBeaten) break
+          if (mineBeaten && !done) break
           g = resolveRetreats(g, power, [])
           heard = mergeCues(heard, g.sounds)
           continue
         }
         if (g.phase === 'builds') {
-          if (adjustmentFor(g.own, g.board, power) !== 0) break
+          if (!done && adjustmentFor(g.own, g.board, power) !== 0) break
           g = resolveBuilds(g, power, [])
           heard = mergeCues(heard, g.sounds)
           continue
@@ -296,6 +307,44 @@ export default function App() {
     setRetreats(new Map())
   }
 
+  /*
+   * Giving up, in its two shapes. See `concede.ts`: resigning needs nobody's
+   * permission and a draw needs everybody's, and the refusals come back with
+   * their reasons so they can be argued with next year.
+   */
+  const giveUp = () => {
+    // Asked twice, in the page rather than in a browser dialog: this is the
+    // one button here that cannot be taken back.
+    if (!sure) {
+      setSure(true)
+      if (synth.sfxOn) synth.reject()
+      return
+    }
+    if (synth.sfxOn) synth.disband()
+    setGame(resign(game, power))
+    setSure(false)
+    setSaid([])
+  }
+
+  const askDraw = () => {
+    setSure(false)
+    if (synth.sfxOn) synth.telegraph(false)
+    const { game: next, verdicts } = askForDraw(game, power)
+    setGame(next)
+    setSaid(verdicts.filter((v) => !v.agree).map((v) => v.why))
+  }
+
+  const askConcede = () => {
+    setSure(false)
+    const leader = POWERS.reduce((best, p) =>
+      centreCount(own, p) > centreCount(own, best) ? p : best,
+    )
+    if (synth.sfxOn) synth.telegraph(false)
+    const { game: next, verdicts } = askToConcede(game, power, leader)
+    setGame(next)
+    setSaid(verdicts.filter((v) => !v.agree).map((v) => v.why))
+  }
+
   const doneBuilding = () => {
     setGame(advance(resolveBuilds(game, power, builds)))
     setBuilds([])
@@ -303,6 +352,25 @@ export default function App() {
 
   const mine = [...units.entries()].filter(([, u]) => u.power === power)
   const season = game.season === 'spring' ? 'Spring' : 'Autumn'
+  const quit = game.resigned.includes(power) || game.out.includes(power)
+
+  if (!started) {
+    return (
+      <Landing
+        power={power}
+        onPick={(p) => {
+          wake()
+          if (synth.sfxOn) synth.tap()
+          setPower(p)
+        }}
+        onStart={() => {
+          wake()
+          if (synth.sfxOn) synth.dice()
+          setStarted(true)
+        }}
+      />
+    )
+  }
 
   return (
     <div className="app">
@@ -343,7 +411,9 @@ export default function App() {
             </select>
           )}
           {game.phase === 'orders' &&
-            `. ${mine.length - orders.size} of ${mine.length} units still without orders.`}
+            (quit
+              ? '. Watching.'
+              : `. ${mine.length - orders.size} of ${mine.length} units still without orders.`)}
           {game.phase === 'retreats' && '. Somebody of yours was thrown out.'}
           {game.phase === 'builds' && '. The winter.'}
         </p>
@@ -373,7 +443,7 @@ export default function App() {
           ))}
         </ul>
 
-        {game.phase === 'retreats' && game.outcome && (
+        {game.phase === 'retreats' && game.outcome && !quit && (
           <RetreatPanel
             power={power}
             board={game.board}
@@ -384,7 +454,7 @@ export default function App() {
           />
         )}
 
-        {game.phase === 'builds' && (
+        {game.phase === 'builds' && !quit && (
           <BuildPanel
             power={power}
             board={game.board}
@@ -396,7 +466,7 @@ export default function App() {
           />
         )}
 
-        {game.phase === 'orders' && (
+        {game.phase === 'orders' && !quit && (
         <PressPanel
           power={power}
           turn={turnOf(game)}
@@ -409,7 +479,44 @@ export default function App() {
         />
         )}
 
-        {game.phase === 'orders' && (
+        {quit && game.phase !== 'over' && (
+          <button type="button" className="submit watch" onClick={submit}>
+            Next turn
+          </button>
+        )}
+
+        {game.phase !== 'over' && (
+          <div className="giving-up">
+            {quit ? (
+              <p className="dim">
+                {game.out.includes(power)
+                  ? 'You have no centres left. The rest plays out without you.'
+                  : 'You have resigned. Your units hold where they stand.'}
+              </p>
+            ) : (
+              <>
+                <button type="button" onClick={askDraw}>
+                  Ask for a draw
+                </button>
+                <button type="button" onClick={askConcede}>
+                  Offer the game
+                </button>
+                <button type="button" className="resign" onClick={giveUp}>
+                  {sure ? 'Resign — certain?' : 'Resign'}
+                </button>
+              </>
+            )}
+            {said.length > 0 && (
+              <ul className="said">
+                {said.map((why, i) => (
+                  <li key={i}>{why}</li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
+
+        {game.phase === 'orders' && !quit && (
         <OrderPanel
           units={units}
           orders={orders}

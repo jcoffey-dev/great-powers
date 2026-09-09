@@ -333,6 +333,51 @@ sits there in red until `F North Sea convoys Yorkshire → Norway` joins it,
 and then both go black. Nothing was added to make that happen. The validator
 already knew.
 
+## Before the map, and how to stop
+
+A landing page, because Diplomacy has a reputation and about half of it is
+wrong. The rules are short enough to state completely and strange enough
+that stating them is a courtesy: there is no luck in this game at all, every
+unit is exactly as strong as every other, and nothing happens on the board
+that somebody did not agree to help with. It is also the honest place for
+the licence and for where the map came from -- a page that says nothing
+about that is a page quietly hoping nobody asks.
+
+The dice that play when you start are the only joke in here. There are no
+dice in Diplomacy; that is the sound of every other board game you have
+played, and the last one you hear before finding out that none of this is
+luck.
+
+Giving up is two different things and `src/game/concede.ts` keeps them
+apart.
+
+**Resigning is unilateral.** Nobody is entitled to your attention, so nobody
+votes on it. But your power does not leave the board: it goes into civil
+disorder, holds everything, waives its builds and is paid off as it loses
+centres, which is what the rules already say happens to an absent player.
+That matters to everybody else. A resigned Austria is still eleven centres
+somebody has to go and take, and letting them evaporate would hand the game
+to whoever happened to be next door.
+
+**A draw is not unilateral**, and that is the part that keeps it Diplomacy
+rather than a menu. Every surviving power votes and one refusal is enough,
+because being able to end the game by asking would be worth more than any
+alliance in it. A power refuses while it leads or is within two centres of
+leading, and it says so: *"England is 1 behind and thinks that is
+catchable."* Asked in Spring 1901 every one of the other six refuses, which
+is the right answer -- a game that could be drawn on the first turn would
+not be worth playing.
+
+**Conceding** -- handing the game to whoever is winning -- is harder to get
+than a draw, and it should be. It only carries when the solo was coming
+anyway: the leader is within four of eighteen and nobody left can close the
+gap. Otherwise refusing costs nothing but time, and time is the only thing
+the losing side has.
+
+Elimination is the third way out and needs no button. When your last centre
+goes you are told so and the rest plays out; you can watch it or close the
+tab, and either way the board is still worth seeing.
+
 ## Still to build
 
 - bots strong enough to solo against each other, not only to draw
