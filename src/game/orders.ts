@@ -334,6 +334,17 @@ function reaches(unit: Unit, to: string): boolean {
  * Could water ever carry an army from here to there, whatever anybody has
  * ordered? A question about the map alone, and the one that makes a convoy
  * order from a fleet nowhere near the route no order at all.
+ *
+ * Only **proper** routes count, which is the document's word (issue 4.E.1)
+ * and is what makes a superfluous convoy order illegal rather than merely
+ * pointless. A proper route never jumps to a province an earlier fleet in
+ * the chain could already have reached: Tunis - Ionian - Adriatic - Albania
+ * is not one, because the Ionian touches Albania and the Adriatic is doing
+ * nothing. In graph terms the chain has no chords.
+ *
+ * Without it a fleet can claim to be carrying an army it is standing beside
+ * the point of, and that claim carries weight -- in 6.G.19 it is the
+ * difference between two units swapping places and bouncing off each other.
  */
 export function seaRouteExists(
   from: string,
@@ -347,23 +358,56 @@ export function seaRouteExists(
   if (start === end) return false
   if (PROVINCES[start]?.terrain !== 'coast' || PROVINCES[end]?.terrain !== 'coast') return false
 
+  /*
+   * The seas out of a node. The first step is its own case: a two-coasted
+   * province has no bare entry in the fleet graph at all -- there is no
+   * 'bul', only 'bul/ec' and 'bul/sc' -- so an army boarding in Bulgaria
+   * has to be given both coasts' seas or it finds no water to start from.
+   */
   const seas = (id: string) =>
-    (FLEET[id] ?? []).filter((n) => PROVINCES[base(n)]!.terrain === 'sea' && n !== avoiding)
+    (id === start ? coastalSeas(start) : (FLEET[id] ?? [])).filter(
+      (n) => PROVINCES[base(n)]!.terrain === 'sea' && n !== avoiding,
+    )
 
-  // Walk the seas, remembering whether the required one has been used.
-  const seen = new Set<string>()
-  const queue: [string, boolean][] = []
-  for (const sea of coastalSeas(start)) if (sea !== avoiding) queue.push([sea, sea === through])
+  /** Does this node of the chain touch that one? */
+  const touches = (a: string, b: string): boolean =>
+    a === start
+      ? coastalSeas(start).includes(b)
+      : b === end
+        ? (FLEET[a] ?? []).some((n) => base(n) === end)
+        : (FLEET[a] ?? []).includes(b)
 
-  while (queue.length > 0) {
-    const [sea, used] = queue.shift()!
-    const key = `${sea}:${used}`
-    if (seen.has(key)) continue
-    seen.add(key)
-    if ((FLEET[sea] ?? []).some((n) => base(n) === end) && (!through || used)) return true
-    for (const next of seas(sea)) queue.push([next, used || next === through])
+  /*
+   * Depth first over chains rather than breadth first over seas, because
+   * properness is a fact about the whole chain so far and cannot be decided
+   * one sea at a time. The map has nineteen seas and the chains are short.
+   */
+  const walk = (path: string[], used: boolean): boolean => {
+    const last = path[path.length - 1]!
+    /*
+     * A jump is proper if nothing before the current tail already reached
+     * where we are going.
+     *
+     * Only asked when a particular fleet is being judged, which is the only
+     * question the document uses it for: whether *that* fleet is superfluous
+     * to every route it could belong to. Asking it of the plain question --
+     * could water get an army there at all -- is a different and wrong
+     * claim, and it broke five cases where a convoy legitimately runs the
+     * long way round because the short way has no fleet in it.
+     */
+    const proper = (next: string) =>
+      through === undefined ||
+      !path.slice(0, -1).some((earlier) => touches(earlier, next))
+
+    if (touches(last, end) && proper(end) && (!through || used)) return true
+    for (const next of seas(last)) {
+      if (path.includes(next) || !proper(next)) continue
+      if (walk([...path, next], used || next === through)) return true
+    }
+    return false
   }
-  return false
+
+  return walk([start], false)
 }
 
 /**
