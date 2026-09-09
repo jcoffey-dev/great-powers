@@ -471,6 +471,7 @@ header select {
   color: #8c98ab;
 }
 .landing footer p { margin: 0 0 8px; }
+.landing footer .ways { font-size: 0.95rem; color: #cbd6e6; margin-bottom: 12px; }
 
 /* ----------------------------------------------------------- giving up */
 

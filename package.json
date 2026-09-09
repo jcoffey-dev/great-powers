@@ -26,5 +26,13 @@
   },
   "description": "A browser rebuild of the classic seven-power negotiation game, one human against six computer powers.",
   "license": "AGPL-3.0-or-later",
-  "author": "John Coffey"
+  "author": "John Coffey",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Coffey-Labs/great-powers.git"
+  },
+  "homepage": "https://games.jcoffey.dev/powers/",
+  "bugs": {
+    "url": "https://github.com/Coffey-Labs/great-powers/issues"
+  }
 }

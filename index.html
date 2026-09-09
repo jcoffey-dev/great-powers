@@ -3,11 +3,141 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Great Powers &mdash; the classic negotiation game, in your browser</title>
+    <title>Great Powers — the classic negotiation game, in your browser</title>
+    <meta
+      name="description"
+      content="Europe in 1901, seven powers, thirty-four supply centres and no dice. Every unit is as strong as every other, so nothing happens that somebody did not agree to help with. One of you against six who negotiate, agree, and break their word. Free, no account, nothing to install."
+    />
     <meta name="author" content="John Coffey" />
+
+    <!--
+      Canonical, because the container serving this falls back to index.html
+      for any path under /powers/ rather than returning a 404. That is right
+      for the app and wrong for a crawler, which would otherwise be free to
+      index /powers/anything-at-all as a separate page with identical content.
+    -->
+    <link rel="canonical" href="https://games.jcoffey.dev/powers/" />
+    <meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1" />
+
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="theme-color" content="#1b2437" />
+
+    <meta property="og:site_name" content="Games · jcoffey.dev" />
+    <meta property="og:locale" content="en_US" />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Great Powers — the classic negotiation game, in your browser" />
+    <meta property="og:url" content="https://games.jcoffey.dev/powers/" />
+    <meta
+      property="og:description"
+      content="Europe, 1901. Seven powers, thirty-four supply centres and no dice. Nothing happens on this board that somebody did not agree to help with."
+    />
+    <!--
+      The preview image is served by the site rather than carried here.
+      Everything in this repository is generated in code -- there is no artwork
+      file and there is not going to be one -- and a social card is not part of
+      the game. It sits with the deployment, which is also where the canonical
+      URL above points, so the two agree about which site this is.
+    -->
+    <meta property="og:image" content="https://games.jcoffey.dev/img/powers-social.png?v=2026-09-09a" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta
+      property="og:image:alt"
+      content="Great Powers — the map of Europe in 1901, divided between seven colours"
+    />
+
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Great Powers — the classic negotiation game, in your browser" />
+    <meta
+      name="twitter:description"
+      content="Europe, 1901. Seven powers, thirty-four supply centres and no dice."
+    />
+    <meta name="twitter:image" content="https://games.jcoffey.dev/img/powers-social.png?v=2026-09-09a" />
+
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "VideoGame",
+        "name": "Great Powers",
+        "url": "https://games.jcoffey.dev/powers/",
+        "description": "A browser rebuild of the classic seven-power negotiation game. Europe in 1901, thirty-four supply centres, no luck of any kind: every unit is exactly as strong as every other, so nothing is taken without somebody agreeing to help take it. One human against six computer powers that propose, accept, refuse and break their word.",
+        "genre": ["Strategy", "Board game", "Turn-based"],
+        "gamePlatform": "Web browser",
+        "applicationCategory": "GameApplication",
+        "operatingSystem": "Any modern web browser",
+        "playMode": "SinglePlayer",
+        "numberOfPlayers": {
+          "@type": "QuantitativeValue",
+          "value": 1
+        },
+        "author": {
+          "@type": "Person",
+          "name": "John Coffey",
+          "url": "https://jcoffey.dev/"
+        },
+        "license": "https://www.gnu.org/licenses/agpl-3.0.html",
+        "isAccessibleForFree": true,
+        "offers": {
+          "@type": "Offer",
+          "price": "0",
+          "priceCurrency": "USD",
+          "availability": "https://schema.org/InStock"
+        },
+        "inLanguage": "en"
+      }
+    </script>
+
+    <!--
+      The same three steps the way-back link offers, said in a form a crawler
+      reads: this game sits under the games site, which sits under jcoffey.dev.
+    -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+          {
+            "@type": "ListItem",
+            "position": 1,
+            "name": "John Coffey",
+            "item": "https://jcoffey.dev/"
+          },
+          {
+            "@type": "ListItem",
+            "position": 2,
+            "name": "Games",
+            "item": "https://games.jcoffey.dev/"
+          },
+          {
+            "@type": "ListItem",
+            "position": 3,
+            "name": "Great Powers",
+            "item": "https://games.jcoffey.dev/powers/"
+          }
+        ]
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>
+    <!--
+      What the page says before React has said anything. A crawler that does
+      not run scripts, and a reader who has them turned off, both get the game
+      described and a way onwards rather than an empty div.
+    -->
+    <noscript>
+      <h1>Great Powers</h1>
+      <p>
+        Europe in 1901. Seven powers, thirty-four supply centres and no dice at
+        all. Every unit is exactly as strong as every other, so one can never
+        push another out of a province and two can — which means nothing
+        happens on this board that somebody did not agree to help with. You
+        play one power against six that negotiate, agree, and break their word.
+        It needs JavaScript to play.
+      </p>
+      <p><a href="https://games.jcoffey.dev/">The rest of the games</a></p>
+      <p><a href="https://github.com/Coffey-Labs/great-powers">Source, AGPL-3.0-or-later</a></p>
+    </noscript>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

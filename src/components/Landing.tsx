@@ -105,6 +105,18 @@ export function Landing({
       </div>
 
       <footer>
+        <p className="ways">
+          {/*
+            Absolute rather than "/", because this game is served from a
+            subdirectory in production and from the root in development -- so
+            the relative answer is right in one of those and points at the game
+            itself in the other. The destination is a particular site, and
+            naming it is the honest way to say so.
+          */}
+          <a href="https://games.jcoffey.dev/">The rest of the games</a>
+          {' · '}
+          <a href="https://github.com/Coffey-Labs/great-powers">Source</a>
+        </p>
         <p>
           Great Powers is free software under the{' '}
           <a href="https://www.gnu.org/licenses/agpl-3.0.html">GNU Affero General Public License,
