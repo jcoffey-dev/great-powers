@@ -117,14 +117,36 @@ function resolveAll(
     return dest
   }
 
-  /** Is this move going over water rather than across a border? */
+  /**
+   * Is this move going over water rather than across a border?
+   *
+   * Only interesting when both are possible, and then it is a question about
+   * intent rather than about the map -- and intent decides whether two units
+   * swapping places bounce off each other or sail past each other.
+   *
+   * The rule the published cases settle on: an army goes by convoy if it was
+   * ordered to, or if its **own power** gave at least one convoy order for
+   * that move that was a legal order. Somebody else's fleets offering to
+   * carry you is not intent, however good the route -- and your own fleet
+   * offering from a sea it could never do it from is not intent either,
+   * because that was not an order. Once intent exists, any ordered route may
+   * do the carrying, including a foreign one.
+   */
   function isConvoyed(p: string): boolean {
     const o = orderAt(p)
     const unit = unitAt(p)
     if (o?.type !== 'move' || unit?.type !== 'army') return false
+
     const overland = (ARMY[base(unit.at)] ?? []).includes(base(o.to))
-    if (overland && !o.viaConvoy) return false
-    return true
+    if (!overland) return true
+    if (o.viaConvoy) return true
+
+    for (const [q, c] of orders) {
+      if (c.type !== 'convoy') continue
+      if (base(c.from) !== p || base(c.to) !== base(o.to)) continue
+      if (unitAt(q)?.power === unit.power) return true
+    }
+    return false
   }
 
   /** Fleets convoying that are being thrown out of their sea as we speak. */

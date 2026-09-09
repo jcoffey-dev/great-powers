@@ -52,10 +52,23 @@ describe('DATC', () => {
             break
           case 'fails':
           case 'cut':
-          case 'disrupted':
           case 'illegal':
             expect(outcome.success.get(province), `${province} ${mark}`).toBe(false)
             break
+          case 'disrupted': {
+            /*
+             * A disrupted convoy is one that did not deliver its army. That
+             * is not the same as its fleet being sunk -- in Pandin's Paradox
+             * the fleet survives and the army still does not arrive -- so
+             * the thing to check is the army, not the escort.
+             */
+            const convoy = c.orders.find(
+              (o) => o.type === 'convoy' && o.at.split('/')[0] === province,
+            )
+            const army = convoy && 'from' in convoy ? convoy.from.split('/')[0] : province
+            expect(outcome.success.get(army), `${province} disrupted`).toBe(false)
+            break
+          }
           case 'dislodged':
             expect(outcome.dislodged.has(province), `${province} dislodged`).toBe(true)
             break

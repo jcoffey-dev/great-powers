@@ -86,17 +86,23 @@ export function convoyRoute(
   }
   if (convoyers.size === 0) return null
 
-  // Breadth first, so the route found is the shortest one available.
+  /*
+   * Breadth first, so the route found is the shortest one available.
+   *
+   * Both ends are compared by province rather than by key. A two-coasted
+   * province has no bare entry in the fleet graph at all -- there is no
+   * 'bul', only 'bul/ec' and 'bul/sc' -- so an army walking aboard in
+   * Bulgaria found no sea to start from and simply stayed there.
+   */
+  const fromSeas = coastalSeas(start)
   const queue: string[][] = []
-  for (const sea of convoyers) {
-    if ((FLEET[start] ?? []).includes(sea)) queue.push([sea])
-  }
+  for (const sea of convoyers) if (fromSeas.includes(sea)) queue.push([sea])
   const seen = new Set<string>()
 
   while (queue.length > 0) {
     const path = queue.shift()!
     const last = path[path.length - 1]!
-    if ((FLEET[last] ?? []).includes(end)) return path
+    if ((FLEET[last] ?? []).some((n) => base(n) === end)) return path
     if (seen.has(last)) continue
     seen.add(last)
     for (const next of FLEET[last] ?? []) {
@@ -132,6 +138,7 @@ export function validate(board: Board, given: readonly Order[]): Validated {
   const illegal = new Set<string>()
 
   const refused = new Set<string>()
+  const supports: Extract<Order, { type: 'support' }>[] = []
 
   for (const order of given) {
     const at = base(order.at)
@@ -143,10 +150,36 @@ export function validate(board: Board, given: readonly Order[]): Validated {
       refused.add(at)
       continue
     }
+    if (order.type === 'support') {
+      supports.push(order)
+      continue
+    }
 
     const ok = check(board, unit, order)
     if (ok) orders.set(at, ok)
     else refused.add(at)
+  }
+
+  /*
+   * Supports last, because a support is only as legal as the move underneath
+   * it. You cannot support a fleet into an inland province by wishing: the
+   * move was never an order, so neither was the support of it.
+   */
+  for (const order of supports) {
+    const at = base(order.at)
+    const unit = board.get(at)!
+    const ok = check(board, unit, order)
+    if (!ok) {
+      refused.add(at)
+      continue
+    }
+    const supported = orders.get(base(order.from))
+    const wasRefused = refused.has(base(order.from))
+    if (base(order.from) !== base(order.to) && wasRefused && supported?.type !== 'move') {
+      refused.add(at)
+      continue
+    }
+    orders.set(at, ok)
   }
 
   for (const at of refused) if (!orders.has(at)) illegal.add(at)
@@ -181,7 +214,7 @@ function check(board: Board, unit: Unit, order: Order): Order | null {
       if (PROVINCES[base(unit.at)]!.terrain !== 'sea') return null
       const army = board.get(base(order.from))
       if (!army || army.type !== 'army') return null
-      return convoyable(army, order.to) ? order : null
+      return seaRouteExists(order.from, order.to, base(unit.at)) ? order : null
     }
   }
 }
@@ -196,15 +229,55 @@ function settleCoast(unit: Unit, to: string): string | null {
   return reachable.length === 1 ? reachable[0]! : null
 }
 
-/** Could this unit ever step here, on any coast? Used for supports. */
+/**
+ * Could this unit ever step here, on any coast?
+ *
+ * Support is given to a province rather than to a coast of one. A fleet in
+ * Marseilles may support an attack on the north coast of Spain even though it
+ * could never sail there itself -- it is holding the province down, not
+ * sailing round it.
+ */
 function reaches(unit: Unit, to: string): boolean {
   if (unit.type === 'army') return (ARMY[base(unit.at)] ?? []).includes(base(to))
-  if (to.includes('/')) return (FLEET[unit.at] ?? []).includes(to)
-  return fleetCoasts(unit.at, to).length > 0
+  return fleetCoasts(unit.at, base(to)).length > 0
 }
 
-/** Both ends ashore, which is the most a convoy can be judged before it sails. */
+/**
+ * Could water ever carry an army from here to there, whatever anybody has
+ * ordered? A question about the map alone, and the one that makes a convoy
+ * order from a fleet nowhere near the route no order at all.
+ */
+export function seaRouteExists(from: string, to: string, through?: string): boolean {
+  const start = base(from)
+  const end = base(to)
+  if (PROVINCES[start]?.terrain !== 'coast' || PROVINCES[end]?.terrain !== 'coast') return false
+
+  const seas = (id: string) =>
+    (FLEET[id] ?? []).filter((n) => PROVINCES[base(n)]!.terrain === 'sea')
+
+  // Walk the seas, remembering whether the required one has been used.
+  const seen = new Set<string>()
+  const queue: [string, boolean][] = []
+  for (const sea of coastalSeas(start)) queue.push([sea, sea === through])
+
+  while (queue.length > 0) {
+    const [sea, used] = queue.shift()!
+    const key = `${sea}:${used}`
+    if (seen.has(key)) continue
+    seen.add(key)
+    if ((FLEET[sea] ?? []).some((n) => base(n) === end) && (!through || used)) return true
+    for (const next of seas(sea)) queue.push([next, used || next === through])
+  }
+  return false
+}
+
+/** The seas a coastal province touches, whichever coast they are on. */
+function coastalSeas(id: string): string[] {
+  const coasts = PROVINCES[id]?.coasts
+  const keys = coasts ? coasts.map((c) => `${id}/${c}`) : [id]
+  return keys.flatMap((k) => (FLEET[k] ?? []).filter((n) => PROVINCES[base(n)]!.terrain === 'sea'))
+}
+
+/** Both ends ashore and some water between them. */
 const convoyable = (unit: Unit, to: string): boolean =>
-  unit.type === 'army' &&
-  PROVINCES[base(unit.at)]!.terrain === 'coast' &&
-  PROVINCES[base(to)]!.terrain === 'coast'
+  unit.type === 'army' && seaRouteExists(unit.at, to)
