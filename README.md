@@ -489,5 +489,9 @@ tab, and either way the board is still worth seeing.
 
 ## Still to build
 
-- bots strong enough to solo against each other, not only to draw
-- the music, the battle sound, the four endings
+- a home on the games hub: a repository, a container, a card and a location
+  block beside the other three
+- a social preview card, which lives with the site rather than here
+- the bots do not talk to the *player* about anything but support: no
+  proposal of a quiet border, no offer of peace, and no way to say "leave
+  Galicia alone this year" in the interface
