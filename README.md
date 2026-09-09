@@ -107,7 +107,7 @@ published cases is parsed and run.
 
 | Section | | Passing |
 | --- | --- | --- |
-| 6.A - 6.G | movement | 136 / 139 |
+| 6.A - 6.G | movement | 138 / 139 |
 | 6.H | retreating | 18 / 18 |
 | 6.I | building | 7 / 7 |
 | 6.J | civil disorder | 13 / 13 |
@@ -121,13 +121,12 @@ Three cases are excluded rather than failed. 6.A.6, 6.B.10 and 6.B.11 state
 their setup in prose -- "Germany has a fleet in London" -- and the fixture is
 built from order lines, so it cannot carry a unit nobody ordered.
 
-Three are known deviations, written down so they are not rediscovered as
-surprises:
+One is a known deviation, written down so it is not rediscovered as a
+surprise:
 
 | Case | What it is |
 | --- | --- |
-| 6.F.28, 6.F.29 | Sixth order paradoxes: the same twenty-six orders with one extra support between them, which the document uses to show that the answer swings on it. The resolver gets five of the six sub-paradoxes right in both and the sixth wrong, and gives the same answer to both positions when the point is that they differ. These are positions nobody assembles by accident. |
-| 6.G.19 | Whether an unnecessary fleet in a convoy chain signals intent. The document gives three different answers by edition, calls the question "a little bit pedantic", and advises that web adjudicators should not offer the order at all -- which is the line this one takes. |
+| 6.F.29 | The butterfly effect. Twenty-seven orders in a ring of six convoy paradoxes, plus one support that unwinds the whole thing -- and the document uses the pair 6.F.28/6.F.29 precisely to show how little it takes. 6.F.28 passes. In 6.F.29 the half of the ring furthest from the extra support comes out right and the half nearest it does not: the resolver settles the first order it reaches while a second free value elsewhere in the ring happens to read the same under both of its guesses, so it declares determinacy it has not earned. Both halves are individually consistent; together they are not. |
 
 ### What the failing cases were worth
 
@@ -149,17 +148,34 @@ the case turns on the difference: the first holds a unit down, the second
 supports a move nobody can legally make. The extractor now keeps the
 distinction; it was losing it.
 
-**The head of a cycle (6.F.22).** Kruijswijk's resolver guesses that an order
-fails, sees what follows, and guesses the other way. Only the *outermost*
-order in a cycle may do that, because its answer is the one everything else
-was computed against. This engine let any order that reached the dependency
-list first declare the cycle its own -- and an inner one takes both guesses
-with its callers' provisional answers held fixed, gets the same result twice
-for that reason, and records it as settled. The cycle then becomes
-invisible: the backup rule never runs, and the position resolves to
-whichever of its two consistent readings the search walked into first. It
-had been doing that on every paradox and getting away with it, because on a
-first-order paradox both readings agree.
+**The head of a cycle (6.F.22, 6.F.28).** Kruijswijk's resolver guesses that
+an order fails, sees what follows, and guesses the other way. Only the
+*outermost* order in a cycle may do that, because its answer is the one
+everything else was computed against. This engine let any order that reached
+the dependency list first declare the cycle its own -- and an inner one
+takes both guesses with its callers' provisional answers held fixed, gets
+the same result twice for that reason, and records it as settled. The cycle
+then becomes invisible: the backup rule never runs, and the position
+resolves to whichever of its two consistent readings the search walked into
+first. It had been doing that on every paradox and getting away with it,
+because on a first-order paradox both readings agree.
+
+Fixing it took two passes. The first asked only whether the cycle had come
+back round to this order, which fixed 6.F.22. 6.F.28 needed the second: an
+order may not settle a cycle while *any* entry in the dependency list is
+still waiting further down the stack, not merely the entries added since it
+started. Six paradoxes in a ring, each a tidy four-order cycle in its own
+right, and each was settling itself locally against a caller's provisional
+answer. The ring they were links in was never seen at all.
+
+**A superfluous convoy order (6.G.19).** For a convoy order the fleet has to
+be necessary to some route -- there must be a route, ordered or not, that
+needs it. The path finder now considers only *proper* routes, which never
+jump to a province an earlier fleet in the chain already reached: Tunis -
+Ionian - Adriatic - Albania is not one, because the Ionian touches Albania
+and the Adriatic is doing nothing. It decides whether two units swap places
+or bounce off each other, and the document's own advice is that an
+interactive system should never offer the order.
 
 Sections H, I and J -- retreating and the winter -- have engine code but no
 harness yet; their cases are shaped differently and need one.

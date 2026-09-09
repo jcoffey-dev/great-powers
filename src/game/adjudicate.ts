@@ -368,12 +368,21 @@ function resolveAll(
     /*
      * Am I the outermost order of this cycle?
      *
-     * Only if the cycle came back round to me at all, and only if none of
-     * its other members is still waiting further down the stack. Anything
-     * else reports what it has and lets the one below ask.
+     * Two conditions. The cycle has to have come back round to me at all --
+     * otherwise I am merely standing next to one. And nothing anywhere in
+     * the dependency list may still be waiting further down the stack: if
+     * one of my own callers is entangled in this, the answer is theirs to
+     * settle, because their value is the one everything here was computed
+     * against.
+     *
+     * The second test looks at the whole list rather than the part added
+     * since I started, and the difference is the whole of 6.F.28. Six
+     * paradoxes in a ring, each a neat four-order cycle of its own; each one
+     * settled itself locally against a caller's provisional answer and
+     * recorded it as final, and the ring they were links in was never seen.
      */
     const cycle = dep.slice(mark)
-    if (!cycle.includes(p) || cycle.some((q) => below.has(q))) {
+    if (!cycle.includes(p) || dep.some((q) => below.has(q))) {
       stack.pop()
       dep.push(p)
       result.set(p, first)
