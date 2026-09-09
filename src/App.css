@@ -99,6 +99,9 @@ header select {
 /* Where the selected unit may actually go, taken from the rules rather than
    from which shapes happen to touch. */
 .region.open { stroke: #b8341f; stroke-width: 5; stroke-dasharray: 12 9; }
+/* The unit you picked to support or to carry: solid, and not the colour of
+   the unit giving the order, so the two halves are never confused. */
+.region.helping { stroke: #1f6fb8; stroke-width: 7; }
 
 .pip {
   fill: #fffaf0;

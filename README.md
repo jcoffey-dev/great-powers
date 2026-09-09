@@ -246,6 +246,31 @@ The game steps past anything with no decision in it. A retreat phase where
 none of your units was thrown out, or a winter where your centres and units
 are level, is not a choice -- it is a screen asking you to press Done.
 
+## Writing a support
+
+Support is the order the whole game turns on, and it was the order this
+interface was worst at taking.
+
+The rule is that the supporting unit must be able to reach the province the
+supported unit is *going to* -- not the province it is standing in. The board
+was offering the wrong set: only units standing next door. So Vienna could
+not support Venice into Tyrolia, which is a perfectly ordinary order --
+Vienna and Tyrolia touch, Vienna and Venice do not -- and there was no way
+to say it. It also offered support to hold for units too far away to prop
+up, wrote the order anyway, and let the adjudicator quietly turn it into a
+hold after the turn was submitted.
+
+That question now lives in `src/game/targets.ts` with the rest of the rules,
+where it is eight tests rather than a closure in a component.
+
+The second half was that a stray click threw away a half-written order. You
+picked Support, picked the unit to help, missed the destination by a
+province, and the whole thing silently became a fresh move somewhere else.
+A two-part order now stands its ground and says no; clicking the unit giving
+the order takes you back to the start of it. And the unit you picked to
+support is marked on the board in a different colour from the unit giving
+the order, because otherwise the second half is written blind.
+
 ## Still to build
 
 - bots strong enough to solo against each other, not only to draw

@@ -35,6 +35,7 @@ export function Board({
   own,
   orders,
   selected,
+  helping,
   offering,
   onPick,
 }: {
@@ -43,6 +44,14 @@ export function Board({
   /** Orders written so far, drawn on the board as they are given. */
   orders?: ReadonlyMap<string, Order>
   selected?: string | null
+  /**
+   * The unit already picked out in a two-part order -- the one being
+   * supported, or the army being carried. Marked separately from the unit
+   * giving the order, because otherwise the second half of a support is
+   * written blind: you click a unit, the highlights all change, and nothing
+   * on the board says which unit you chose.
+   */
+  helping?: string | null
   /** Provinces the current step will accept a click on. */
   offering?: ReadonlySet<string>
   onPick?: (province: string) => void
@@ -68,7 +77,13 @@ export function Board({
           <path
             key={id}
             className={`region ${PROVINCES[id]!.terrain === 'sea' ? 'sea' : 'land'} ${
-              selected === id ? 'picked' : reachable.has(id) ? 'open' : ''
+              selected === id
+                ? 'picked'
+                : helping === id
+                  ? 'helping'
+                  : reachable.has(id)
+                    ? 'open'
+                    : ''
             }`}
             d={SHAPES[id] ?? ''}
             fill={shade(id)}

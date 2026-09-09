@@ -22,6 +22,7 @@ import { POWERS, PROVINCES, base, type Power } from './game/map'
 import { canStep, validate, type Order, type Unit } from './game/orders'
 import type { Proposal } from './game/press'
 import { endingSounded, mergeCues, type Cue } from './game/sound'
+import { convoyTargets, convoyable, supportTargets, supportable } from './game/targets'
 import { adjustmentFor, centreCount, type AdjustOrder, type RetreatOrder } from './game/turn'
 import './App.css'
 
@@ -109,27 +110,11 @@ export default function App() {
     if (!unit) return new Set<string>()
     if (step.kind === 'move') return new Set(reachableFrom(unit).map(base))
     if (step.kind === 'support') {
-      if (step.from === undefined) {
-        return new Set([...units.keys()].filter((p) => p !== step.at && canReach(unit, p)))
-      }
-      const helped = units.get(step.from)
-      if (!helped) return new Set<string>()
-      return new Set(
-        reachableFrom(helped)
-          .map(base)
-          .filter((p) => canReach(unit, p) || p === step.from),
-      )
+      return step.from === undefined
+        ? supportable(units, unit)
+        : supportTargets(units, unit, step.from)
     }
-    if (step.from === undefined) {
-      return new Set(
-        [...units.entries()]
-          .filter(([, u]) => u.type === 'army' && PROVINCES[base(u.at)]!.terrain === 'coast')
-          .map(([p]) => p),
-      )
-    }
-    return new Set(
-      Object.keys(PROVINCES).filter((p) => PROVINCES[p]!.terrain === 'coast' && p !== step.from),
-    )
+    return step.from === undefined ? convoyable(units, unit) : convoyTargets(step.from)
   }, [step, units])
 
   const write = useCallback((order: Order) => {
@@ -140,13 +125,35 @@ export default function App() {
 
   const click = (province: string) => {
     wake()
+    const here = units.get(province)
+
+    /*
+     * A click that the current step cannot use.
+     *
+     * Half-written orders used to be thrown away by one of these: you picked
+     * Support, picked the unit to help, missed the destination by a province,
+     * and the whole thing silently became a fresh Move somewhere else. So a
+     * two-part order now stands its ground and says no. Clicking the unit
+     * giving the order takes you back to the start of it, and every other
+     * unit of yours still switches straight over, which is what makes
+     * writing a page of orders quick.
+     */
+    if (step.kind !== 'idle' && !offering.has(province)) {
+      const half = step.kind !== 'move' && step.from !== undefined
+      if (half && province !== step.at) {
+        if (synth.sfxOn) synth.reject()
+        return
+      }
+      if (synth.sfxOn) synth.tap()
+      if (here?.power === power) setStep({ kind: 'move', at: province })
+      else setStep({ kind: 'idle' })
+      return
+    }
     // Guarded rather than left to the muted bus, so a game played with the
     // sound off never opens an audio context at all.
     if (synth.sfxOn) synth.tap()
-    const here = units.get(province)
-    if (step.kind === 'idle' || !offering.has(province)) {
+    if (step.kind === 'idle') {
       if (here?.power === power) setStep({ kind: 'move', at: province })
-      else setStep({ kind: 'idle' })
       return
     }
     if (step.kind === 'move') {
@@ -310,6 +317,7 @@ export default function App() {
           own={own}
           orders={orders}
           selected={step.kind === 'idle' ? null : step.at}
+          helping={step.kind === 'support' || step.kind === 'convoy' ? step.from : null}
           offering={offering}
           onPick={click}
         />
@@ -382,12 +390,6 @@ export default function App() {
       </aside>
     </div>
   )
-}
-
-function canReach(unit: Unit, province: string): boolean {
-  if (canStep(unit, province)) return true
-  const coasts = PROVINCES[province]?.coasts
-  return coasts !== undefined && coasts.some((c) => canStep(unit, `${province}/${c}`))
 }
 
 function coastOf(unit: Unit, province: string): string {
