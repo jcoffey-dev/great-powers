@@ -1,4 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { playCues, playEnding } from './audio/play'
+import { ARMISTICE, THE_FRONT, THE_PUSH } from './audio/score'
+import { synth } from './audio/synth'
 import { Board, COLOURS, POWER_NAMES } from './components/Board'
 import { BuildPanel, RetreatPanel } from './components/AdjustPanel'
 import { OrderPanel, type Step } from './components/OrderPanel'
@@ -18,6 +21,7 @@ import { reachableFrom } from './game/layout'
 import { POWERS, PROVINCES, base, type Power } from './game/map'
 import { canStep, validate, type Order, type Unit } from './game/orders'
 import type { Proposal } from './game/press'
+import { endingSounded, mergeCues, type Cue } from './game/sound'
 import { adjustmentFor, centreCount, type AdjustOrder, type RetreatOrder } from './game/turn'
 import './App.css'
 
@@ -36,6 +40,48 @@ export default function App() {
   const [orders, setOrders] = useState<Map<string, Order>>(new Map())
   const [retreats, setRetreats] = useState<Map<string, RetreatOrder>>(new Map())
   const [builds, setBuilds] = useState<AdjustOrder[]>([])
+  const [sound, setSound] = useState(true)
+
+  // ------------------------------------------------------------ audio glue
+
+  /*
+   * A browser will not make a noise until somebody has touched the page, so
+   * the context is opened on the first click rather than on load. Everything
+   * before that is silent whatever the toggle says, which is the rule and
+   * not a bug.
+   */
+  const started = useRef(false)
+
+  /*
+   * Which piece is playing is not decoration: spring is the march, autumn is
+   * the same march at a hundred and thirty-two, and autumn is the season
+   * that counts centres. You can hear what time of year it is.
+   */
+  const tune = game.phase === 'over' ? ARMISTICE : game.season === 'spring' ? THE_FRONT : THE_PUSH
+
+  const wake = useCallback(() => {
+    if (started.current || !sound) return
+    started.current = true
+    synth.ensure()
+    synth.playTune(tune, false)
+  }, [sound, tune])
+
+  useEffect(() => {
+    synth.setMusic(sound)
+    synth.setSfx(sound)
+  }, [sound])
+
+  useEffect(() => {
+    if (started.current) synth.playTune(tune, false)
+  }, [tune])
+
+  /** The ending, once, when there is one. */
+  const ended = useRef(false)
+  useEffect(() => {
+    if (game.phase !== 'over' || ended.current) return
+    ended.current = true
+    playEnding(endingSounded(game.winner, game.out, power))
+  }, [game.phase, game.winner, game.out, power])
 
   /*
    * The talking happens once per orders phase. Keeping a note of which turn
@@ -89,9 +135,14 @@ export default function App() {
   const write = useCallback((order: Order) => {
     setOrders((prev) => new Map(prev).set(base(order.at), order))
     setStep({ kind: 'idle' })
+    if (synth.sfxOn) synth.written()
   }, [])
 
   const click = (province: string) => {
+    wake()
+    // Guarded rather than left to the muted bus, so a game played with the
+    // sound off never opens an audio context at all.
+    if (synth.sfxOn) synth.tap()
     const here = units.get(province)
     if (step.kind === 'idle' || !offering.has(province)) {
       if (here?.power === power) setStep({ kind: 'move', at: province })
@@ -123,6 +174,7 @@ export default function App() {
 
   /** Yes or no to somebody's approach. Neither answer binds anybody. */
   const answer = (overture: Overture, yes: boolean) => {
+    if (synth.sfxOn) synth.telegraph(yes)
     setAsked((prev) => prev.filter((o) => o.proposal.id !== overture.proposal.id))
     if (yes) setGame((g) => ({ ...g, agreements: [...g.agreements, overture.proposal] }))
   }
@@ -138,6 +190,7 @@ export default function App() {
     }
     const theirs = { power: to, ledger: game.ledger, agreements: game.agreements }
     const reply = consider(pos, theirs, proposal, turnOf(game))
+    if (synth.sfxOn) synth.telegraph(reply.reply === 'accept')
     if (reply.reply === 'accept') {
       setGame((g) => ({ ...g, agreements: [...g.agreements, proposal] }))
     }
@@ -155,27 +208,38 @@ export default function App() {
   const advance = useCallback(
     (from: Game): Game => {
       let g = from
+      /*
+       * Each phase reports its own sounds, so a submission that runs through
+       * three of them would otherwise arrive with only the last one's. They
+       * are collected here and played together.
+       */
+      let heard: Cue[] = g.sounds
       for (;;) {
         if (g.phase === 'retreats') {
           const mineBeaten = [...(g.outcome?.dislodged.values() ?? [])].some(
             (d) => d.unit.power === power,
           )
-          if (mineBeaten) return g
+          if (mineBeaten) break
           g = resolveRetreats(g, power, [])
+          heard = mergeCues(heard, g.sounds)
           continue
         }
         if (g.phase === 'builds') {
-          if (adjustmentFor(g.own, g.board, power) !== 0) return g
+          if (adjustmentFor(g.own, g.board, power) !== 0) break
           g = resolveBuilds(g, power, [])
+          heard = mergeCues(heard, g.sounds)
           continue
         }
-        return g
+        break
       }
+      playCues(heard)
+      return g
     },
     [power],
   )
 
   const submit = () => {
+    wake()
     setOrders(new Map())
     setStep({ kind: 'idle' })
     setAsked([])
@@ -199,6 +263,18 @@ export default function App() {
     <div className="app">
       <header>
         <h1>Great Powers</h1>
+        <button
+          type="button"
+          className="sound"
+          aria-pressed={sound}
+          onClick={() => {
+            const next = !sound
+            setSound(next)
+            if (next) wake()
+          }}
+        >
+          {sound ? 'Sound on' : 'Sound off'}
+        </button>
         <p className="dim">
           {game.phase === 'over'
             ? game.winner

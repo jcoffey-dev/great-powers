@@ -17,7 +17,15 @@
   padding: clamp(10px, 2vw, 22px);
 }
 
-header { grid-area: head; }
+/* The title on the left, the sound on the right, the state of play under
+   both -- so the toggle is findable without taking a line of its own. */
+header {
+  grid-area: head;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: baseline;
+  column-gap: 12px;
+}
 
 h1 {
   margin: 0;
@@ -29,7 +37,21 @@ h1 {
   paint-order: stroke fill;
 }
 
-header p { margin: 2px 0 0; font-size: 0.9rem; }
+header p { grid-column: 1 / -1; margin: 2px 0 0; font-size: 0.9rem; }
+
+.sound {
+  font: inherit;
+  font-weight: 700;
+  font-size: 0.85rem;
+  color: #f2e9d8;
+  background: #2c3b57;
+  border: 2px solid #2b2318;
+  border-radius: 6px;
+  padding: 3px 10px;
+  cursor: pointer;
+}
+
+.sound[aria-pressed='false'] { color: #8c98ab; background: #1b2437; }
 
 header select {
   font: inherit;

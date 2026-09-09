@@ -26,6 +26,7 @@ import {
   type Ownership,
   type RetreatOrder,
 } from './turn'
+import { buildsSounded, movesSounded, retreatsSounded, type Cue } from './sound'
 
 /**
  * The year, and the loop it goes round.
@@ -72,6 +73,12 @@ export interface Game {
   agreements: Agreement[]
   /** Everything that happened, newest last. */
   log: string[]
+  /**
+   * How the last phase sounded, which is a fact about the turn rather than
+   * about the interface -- so it is worked out here, where the orders are,
+   * and tested like anything else. See `sound.ts`.
+   */
+  sounds: Cue[]
   /** Set while retreats are outstanding. */
   outcome: Outcome | null
   winner: Power | null
@@ -99,6 +106,7 @@ export function newGame(): Game {
     ledger: emptyLedger(),
     agreements: [],
     log: ['Spring 1901. Nobody has said anything yet.'],
+    sounds: [],
     outcome: null,
     winner: null,
     drawn: [],
@@ -205,7 +213,14 @@ export function resolveOrders(
     ...report(outcome, all),
   ]
 
-  const next: Game = { ...g, board: after, ledger, log, outcome }
+  const next: Game = {
+    ...g,
+    board: after,
+    ledger,
+    log,
+    outcome,
+    sounds: movesSounded(g.board, all, outcome),
+  }
   void rng
 
   return outcome.dislodged.size > 0
@@ -240,7 +255,7 @@ export function resolveRetreats(
         `${PROVINCES[base(u.at)]!.name}: nowhere to go.`,
     ),
   ]
-  return afterRetreats({ ...g, board, log, outcome: null })
+  return afterRetreats({ ...g, board, log, outcome: null, sounds: retreatsSounded(orders) })
 }
 
 /** The winter, or the next season. */
@@ -307,6 +322,9 @@ export function resolveBuilds(
 
   let board = g.board
   const log = [...g.log]
+  // Everybody's winter, not only the player's: a shipyard in Trieste is
+  // still a shipyard.
+  const adjusted: AdjustOrder[] = [...playerAdjust]
 
   for (const power of POWERS) {
     if (g.out.includes(power)) continue
@@ -324,21 +342,15 @@ export function resolveBuilds(
       const wanted = buildOptions(g.own, board, power)
         .filter((o) => o.type === 'army' || o.at.includes('/') === false)
         .slice(0, owed)
-      board = applyAdjustments(
-        g.own,
-        board,
-        power,
-        wanted.map((o) => ({ type: 'build' as const, at: o.at, unit: o.type })),
-      ).board
+      const raised = wanted.map((o) => ({ type: 'build' as const, at: o.at, unit: o.type }))
+      board = applyAdjustments(g.own, board, power, raised).board
+      adjusted.push(...raised)
       if (wanted.length > 0) log.push(`${power} builds ${wanted.length}.`)
     } else {
       const going = civilDisorderDisbands(g.own, board, power, -owed)
-      board = applyAdjustments(
-        g.own,
-        board,
-        power,
-        going.map((u) => ({ type: 'disband' as const, at: u.at, unit: u.type })),
-      ).board
+      const paidOff = going.map((u) => ({ type: 'disband' as const, at: u.at, unit: u.type }))
+      board = applyAdjustments(g.own, board, power, paidOff).board
+      adjusted.push(...paidOff)
       if (going.length > 0) log.push(`${power} gives up ${going.length}.`)
     }
   }
@@ -347,6 +359,7 @@ export function resolveBuilds(
     ...g,
     board,
     log: [...log, `Spring ${g.year + 1}.`],
+    sounds: buildsSounded(adjusted),
     year: g.year + 1,
     season: 'spring',
     phase: 'orders',
