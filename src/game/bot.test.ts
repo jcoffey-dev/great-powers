@@ -260,7 +260,8 @@ describe('a bot doing the asking', () => {
 
     expect(ask).toBeDefined()
     expect(ask!.proposal.to).toBe('england')
-    expect(ask!.says).toContain('bel')
+    // The sentence is written for a person to read, so it says Belgium.
+    expect(ask!.says).toContain('Belgium')
   })
 
   it('never asks the power it is attacking to help it', () => {

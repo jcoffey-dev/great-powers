@@ -192,7 +192,10 @@ export function resolveOrders(
     const verdicts = judge(deal, byPower, g.board, g.own)
     ledger = remember(ledger, verdicts)
     for (const v of verdicts) {
-      if (!v.kept) broken.push(`${v.power} broke its word: ${v.why}.`)
+      if (!v.kept) {
+        const who = v.power[0]!.toUpperCase() + v.power.slice(1)
+        broken.push(`${who} broke its word: ${v.why}.`)
+      }
     }
   }
 
@@ -231,7 +234,11 @@ export function resolveRetreats(
   const { board, disbanded } = applyRetreats(g.board, g.outcome, orders)
   const log = [
     ...g.log,
-    ...disbanded.map((u) => `${u.power} loses its ${u.type} in ${base(u.at)}: nowhere to go.`),
+    ...disbanded.map(
+      (u) =>
+        `${u.power[0]!.toUpperCase()}${u.power.slice(1)} loses a ${u.type} in ` +
+        `${PROVINCES[base(u.at)]!.name}: nowhere to go.`,
+    ),
   ]
   return afterRetreats({ ...g, board, log, outcome: null })
 }
@@ -254,8 +261,12 @@ function afterRetreats(g: Game): Game {
 
   const log = [
     ...g.log,
-    ...gone.map((p) => `${p} is finished: no centres left.`),
-    ...(winner ? [`${winner} holds ${centreCount(own, winner)} centres. That is the game.`] : []),
+    ...gone.map((p) => `${p[0]!.toUpperCase()}${p.slice(1)} is finished: no centres left.`),
+    ...(winner
+      ? [
+          `${winner[0]!.toUpperCase()}${winner.slice(1)} holds ${centreCount(own, winner)} centres. That is the game.`,
+        ]
+      : []),
   ]
 
   if (winner) return { ...g, own, out, winner, phase: 'over', log }
@@ -344,15 +355,19 @@ export function resolveBuilds(
 
 // ------------------------------------------------------------------ saying
 
+/** The turn, in the words a player would use for it. */
 function report(outcome: Outcome, orders: readonly Order[]): string[] {
   const said: string[] = []
+  const name = (id: string) => PROVINCES[base(id)]!.name
+
   for (const o of orders) {
     if (o.type !== 'move') continue
     const at = base(o.at)
-    if (outcome.success.get(at)) said.push(`${at} takes ${base(o.to)}.`)
+    if (outcome.success.get(at)) said.push(`${name(at)} takes ${name(o.to)}.`)
   }
   for (const [at, d] of outcome.dislodged) {
-    said.push(`${d.unit.power}'s ${d.unit.type} is thrown out of ${at}.`)
+    const who = d.unit.power[0]!.toUpperCase() + d.unit.power.slice(1)
+    said.push(`${who} is thrown out of ${name(at)}.`)
   }
   if (said.length === 0) said.push('Nothing moved.')
   return said

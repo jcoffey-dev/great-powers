@@ -197,7 +197,7 @@ describe('the press, over a turn', () => {
     // Austria promised Galicia would stay empty and marches straight in.
     const orders: Order[] = [{ type: 'move', at: 'vie', to: 'gal', power: 'austria' }]
     const after = resolveOrders(g, PLAYER, orders)
-    expect(after.log.join(' ')).toMatch(/austria broke its word/)
+    expect(after.log.join(' ')).toMatch(/Austria broke its word/)
     expect(look(after.ledger, 'russia', 'austria').broken).toBe(1)
   })
 

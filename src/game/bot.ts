@@ -321,6 +321,15 @@ export interface Answer {
   why: string
 }
 
+/*
+ * These sentences are read by a person, so they are written for one: proper
+ * names, and the province called what it is called on the map. A power that
+ * turns you down saying "austria is worth more to me than boh" is telling
+ * you the truth in a voice nobody uses.
+ */
+const named = (power: Power): string => power[0]!.toUpperCase() + power.slice(1)
+const place = (id: string): string => PROVINCES[base(id)]!.name
+
 /**
  * Whether to accept an offer.
  *
@@ -338,30 +347,30 @@ export function consider(pos: Position, mind: Mind, proposal: Proposal, turn: nu
     if (deal.mover === mind.power) {
       const worth = desire(pos, mind.power, deal.to) * believe
       return worth > FRIEND
-        ? { reply: 'accept', why: `${base(deal.to)} is worth having and ${them} may mean it` }
-        : { reply: 'refuse', why: `${base(deal.to)} is not worth owing ${them} for` }
+        ? { reply: 'accept', why: `${place(deal.to)} is worth having, and ${named(them)} may mean it.` }
+        : { reply: 'refuse', why: `${place(deal.to)} is not worth owing ${named(them)} for.` }
     }
     // They want my support. It costs me a unit's turn, and buys goodwill.
     const cost = desire(pos, mind.power, deal.to)
     const worth = believe * (FRIEND + NEIGHBOUR)
     return worth > cost
-      ? { reply: 'accept', why: `${them} is worth more to me than ${base(deal.to)}` }
-      : { reply: 'refuse', why: `I want ${base(deal.to)} myself` }
+      ? { reply: 'accept', why: `${named(them)} is worth more to me than ${place(deal.to)}.` }
+      : { reply: 'refuse', why: `I want ${place(deal.to)} for myself.` }
   }
 
   if (deal.kind === 'dmz') {
     const mine = desire(pos, mind.power, deal.province)
     const relief = threatFrom(pos, them, mind.power) * NEIGHBOUR
     return relief * believe > mine
-      ? { reply: 'accept', why: `keeping ${base(deal.province)} empty suits me` }
-      : { reply: 'refuse', why: `I have plans for ${base(deal.province)}` }
+      ? { reply: 'accept', why: `Keeping ${place(deal.province)} empty suits me.` }
+      : { reply: 'refuse', why: `I have plans for ${place(deal.province)}.` }
     }
 
   const relief = threatFrom(pos, them, mind.power) * NEIGHBOUR * believe
   const behind = standing(pos, them) - standing(pos, mind.power)
   return relief > 0 && behind < 3 * 100
-    ? { reply: 'accept', why: `a quiet border with ${them} is worth more than the fight` }
-    : { reply: 'refuse', why: `${them} is either no threat or too far ahead to be trusted` }
+    ? { reply: 'accept', why: `A quiet border with ${named(them)} is worth more than the fight.` }
+    : { reply: 'refuse', why: `${named(them)} is either no threat, or too far ahead to trust.` }
 }
 
 /** How many of our centres this power is standing next to. */
@@ -451,7 +460,7 @@ export function propose(pos: Position, mind: Mind, turn: number): Overture[] {
           to: target.to,
         },
       },
-      says: `Support my ${base(target.from)} into ${target.id} and it is mine this turn.`,
+      says: `Support my ${place(target.from)} into ${place(target.id)}, and it is mine this turn.`,
     })
   }
 
@@ -471,7 +480,7 @@ export function propose(pos: Position, mind: Mind, turn: number): Overture[] {
         turn,
         deal: { kind: 'dmz', province: between },
       },
-      says: `Neither of us needs ${between}. Leave it empty and we both look elsewhere.`,
+      says: `Neither of us needs ${place(between)}. Leave it empty and we both look elsewhere.`,
     })
   }
 
