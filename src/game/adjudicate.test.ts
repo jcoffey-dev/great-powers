@@ -247,12 +247,25 @@ describe('convoys', () => {
     expect(r.success.get('lon')).toBe(true)
   })
 
-  it('lets an army walk instead when the water is not the only way', () => {
-    // London to Yorkshire needs no convoy, so sinking the fleet changes nothing.
+  it('commits an army to the water once its own fleet is told to carry it', () => {
+    /*
+     * London to Yorkshire needs no convoy at all, and this army does not get
+     * to change its mind. Ordering your own fleet to convoy is how you say
+     * you are going by sea -- it is the same signal that lets two units swap
+     * places instead of bouncing -- so sinking the escort strands the army
+     * rather than sending it walking.
+     */
     const r = run(
       [A('england', 'lon'), F('england', 'nth'), F('germany', 'hel'), F('germany', 'den')],
       [mv('lon', 'yor'), cvy('nth', 'lon', 'yor'), mv('hel', 'nth'), sup('den', 'hel', 'nth')],
     )
+    expect(r.dislodged.get('nth')).toBeDefined()
+    expect(r.success.get('lon')).toBe(false)
+  })
+
+  it('walks when nobody offered to carry it', () => {
+    // The same move with no convoy ordered is simply a march.
+    const r = run([A('england', 'lon')], [mv('lon', 'yor')])
     expect(r.success.get('lon')).toBe(true)
   })
 })

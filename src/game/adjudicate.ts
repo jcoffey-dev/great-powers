@@ -185,6 +185,8 @@ function resolveAll(
     for (const [q, s] of orders) {
       if (s.type !== 'support') continue
       if (base(s.from) !== p || base(s.to) !== base(o.to)) continue
+      // Naming a coast is allowed and then it has to be the right coast.
+      if (s.to.includes('/') && o.to.includes('/') && s.to !== o.to) continue
       if (notFrom !== null && unitAt(q)?.power === notFrom) continue
       if (resolve(q)) n++
     }
@@ -232,6 +234,16 @@ function resolveAll(
     if (!unitAt(dest)) return 0
     const o = orderAt(dest)
     if (o?.type === 'move') return resolve(dest) ? 0 : 1
+    /*
+     * A unit told to move cannot be supported where it stands, and the first
+     * branch above covers that. What is *not* settled here is the unit whose
+     * move order was refused outright: 6.D.8 says it loses its hold support
+     * too, while 6.D.28 to 6.D.32 say a unit in much the same position keeps
+     * it. The difference is the document's distinction between an order that
+     * is `invalid` and one that is `illegal`, which I have not pinned down,
+     * and guessing at it cost four passing cases to buy one. Left alone
+     * until it can be read properly rather than inferred.
+     */
     return 1 + supportsToHold(dest)
   }
 

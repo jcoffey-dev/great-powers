@@ -131,11 +131,33 @@ export interface Validated {
   orders: Map<string, Order>
   /** Provinces whose order was refused; those units hold. */
   illegal: Set<string>
+  /** Provinces whose unit was told to move, legally or not. */
+  orderedToMove: Set<string>
 }
 
 export function validate(board: Board, given: readonly Order[]): Validated {
   const orders = new Map<string, Order>()
   const illegal = new Set<string>()
+  /*
+   * Convoy orders as given, for judging whether a move over water is a move
+   * at all. A route that exists on the map is not enough: an army ordered
+   * from Yorkshire to Holland with nobody in the North Sea has been ordered
+   * to do something impossible in this position, however possible it is in
+   * another one.
+   */
+  const offered = given.filter((o) => o.type === 'convoy')
+  /*
+   * Anybody who was told to move, whether or not the order was a legal one.
+   *
+   * They cannot be supported where they stand. It is not enough that the
+   * move failed, or that it was never possible: the unit was ordered away,
+   * and a unit ordered away is not holding the province -- it is trying to
+   * leave and not managing it, which is a different thing and cannot be
+   * propped up.
+   */
+  const orderedToMove = new Set(
+    given.filter((o) => o.type === 'move').map((o) => base(o.at)),
+  )
 
   const refused = new Set<string>()
   const supports: Extract<Order, { type: 'support' }>[] = []
@@ -155,7 +177,7 @@ export function validate(board: Board, given: readonly Order[]): Validated {
       continue
     }
 
-    const ok = check(board, unit, order)
+    const ok = check(board, unit, order, offered)
     if (ok) orders.set(at, ok)
     else refused.add(at)
   }
@@ -168,7 +190,7 @@ export function validate(board: Board, given: readonly Order[]): Validated {
   for (const order of supports) {
     const at = base(order.at)
     const unit = board.get(at)!
-    const ok = check(board, unit, order)
+    const ok = check(board, unit, order, offered)
     if (!ok) {
       refused.add(at)
       continue
@@ -184,11 +206,16 @@ export function validate(board: Board, given: readonly Order[]): Validated {
 
   for (const at of refused) if (!orders.has(at)) illegal.add(at)
   for (const [p] of board) if (!orders.has(p)) orders.set(p, { type: 'hold', at: p })
-  return { orders, illegal }
+  return { orders, illegal, orderedToMove }
 }
 
 /** The order as it will be obeyed, with the coast filled in, or null. */
-function check(board: Board, unit: Unit, order: Order): Order | null {
+function check(
+  board: Board,
+  unit: Unit,
+  order: Order,
+  offered: readonly Order[] = [],
+): Order | null {
   switch (order.type) {
     case 'hold':
       return order
@@ -200,13 +227,38 @@ function check(board: Board, unit: Unit, order: Order): Order | null {
       if (unit.type === 'fleet') return canStep(unit, to) ? { ...order, to } : null
       // An army may walk, or be carried; either is a legal thing to order.
       if (canStep(unit, to)) return { ...order, to }
-      return convoyable(unit, to) ? { ...order, to, viaConvoy: true } : null
+      if (!convoyable(unit, to)) return null
+      const carried = offered.some(
+        (c) =>
+          c.type === 'convoy' &&
+          base(c.from) === base(unit.at) &&
+          base(c.to) === base(to) &&
+          board.get(base(c.at))?.type === 'fleet',
+      )
+      return carried ? { ...order, to, viaConvoy: true } : null
     }
 
     case 'support': {
       // You may only support into a province you could have gone to yourself.
       if (base(order.from) === base(unit.at)) return null
-      return reaches(unit, order.to) ? order : null
+      if (!reaches(unit, order.to)) return null
+
+      /*
+       * A fleet cannot convoy and support at the same time. So if the move
+       * being supported can only go by water, and every route runs through
+       * this very fleet, the support was never possible -- an impossibility
+       * for complex reasons, which is exactly what makes it worth checking.
+       */
+      const moving = board.get(base(order.from))
+      if (
+        moving?.type === 'army' &&
+        base(order.from) !== base(order.to) &&
+        !(ARMY[base(moving.at)] ?? []).includes(base(order.to)) &&
+        !seaRouteExists(order.from, order.to, undefined, base(unit.at))
+      ) {
+        return null
+      }
+      return order
     }
 
     case 'convoy': {
@@ -247,18 +299,25 @@ function reaches(unit: Unit, to: string): boolean {
  * ordered? A question about the map alone, and the one that makes a convoy
  * order from a fleet nowhere near the route no order at all.
  */
-export function seaRouteExists(from: string, to: string, through?: string): boolean {
+export function seaRouteExists(
+  from: string,
+  to: string,
+  through?: string,
+  /** A sea to pretend is not there, for asking whether it was needed. */
+  avoiding?: string,
+): boolean {
   const start = base(from)
   const end = base(to)
+  if (start === end) return false
   if (PROVINCES[start]?.terrain !== 'coast' || PROVINCES[end]?.terrain !== 'coast') return false
 
   const seas = (id: string) =>
-    (FLEET[id] ?? []).filter((n) => PROVINCES[base(n)]!.terrain === 'sea')
+    (FLEET[id] ?? []).filter((n) => PROVINCES[base(n)]!.terrain === 'sea' && n !== avoiding)
 
   // Walk the seas, remembering whether the required one has been used.
   const seen = new Set<string>()
   const queue: [string, boolean][] = []
-  for (const sea of coastalSeas(start)) queue.push([sea, sea === through])
+  for (const sea of coastalSeas(start)) if (sea !== avoiding) queue.push([sea, sea === through])
 
   while (queue.length > 0) {
     const [sea, used] = queue.shift()!
