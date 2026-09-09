@@ -1,5 +1,5 @@
 import { ARMY, base } from './map'
-import { canStep, convoyRoute, type Board, type Order, type Unit } from './orders'
+import { canStep, convoyRoute, validate, type Board, type Order, type Unit } from './orders'
 
 /**
  * The adjudicator.
@@ -47,11 +47,43 @@ export interface Outcome {
 
 type State = 'unresolved' | 'guessing' | 'resolved'
 
+/**
+ * Thrown when a convoy paradox turns up, to start the whole resolution again
+ * with that convoy's army held still. Restarting is not elegant and it is
+ * provably finite, which matters more: every restart forces one more army to
+ * stand, and there are only so many armies.
+ */
+class Paradox extends Error {
+  stalled: readonly string[]
+  constructor(stalled: readonly string[]) {
+    super('convoy paradox')
+    this.stalled = stalled
+  }
+}
+
 export function adjudicate(board: Board, orderList: readonly Order[]): Outcome {
-  const orders = new Map<string, Order>()
-  for (const o of orderList) orders.set(base(o.at), o)
-  // A unit with no order holds; a unit with a nonsense order holds too.
-  for (const p of board.keys()) if (!orders.has(p)) orders.set(p, { type: 'hold', at: p })
+  const forced = new Set<string>()
+  for (;;) {
+    try {
+      return resolveAll(board, orderList, forced)
+    } catch (e) {
+      if (!(e instanceof Paradox)) throw e
+      const before = forced.size
+      for (const p of e.stalled) forced.add(p)
+      // No progress would mean looping forever; there is a bug if it happens.
+      if (forced.size === before) throw new Error('paradox made no progress')
+    }
+  }
+}
+
+function resolveAll(
+  board: Board,
+  orderList: readonly Order[],
+  /** Convoyed armies a paradox has already forced to stand still. */
+  forced: ReadonlySet<string>,
+): Outcome {
+  // A unit with no order holds, and so does a unit whose order was refused.
+  const { orders, illegal } = validate(board, orderList)
 
   const state = new Map<string, State>()
   const result = new Map<string, boolean>()
@@ -106,6 +138,10 @@ export function adjudicate(board: Board, orderList: readonly Order[]): Outcome {
 
   /** Can this move physically happen at all? Zero attack strength if not. */
   function hasPath(p: string): boolean {
+    // An army Szykman's rule has told to stand has no route anywhere, and
+    // therefore no weight: it cuts nothing and prevents nothing. Leaving it
+    // with a path is what let the paradox re-form on the next pass.
+    if (forced.has(p)) return false
     const o = orderAt(p)
     const unit = unitAt(p)
     if (o?.type !== 'move' || !unit) return false
@@ -190,6 +226,10 @@ export function adjudicate(board: Board, orderList: readonly Order[]): Outcome {
 
   function adjudicateOne(p: string): boolean {
     const o = orderAt(p)!
+
+    // Szykman's rule, already applied: this army was carried into a paradox
+    // on an earlier pass and has been told to stand.
+    if (forced.has(p)) return false
 
     if (o.type === 'hold') return true
 
@@ -301,19 +341,34 @@ export function adjudicate(board: Board, orderList: readonly Order[]): Outcome {
     const cycle = dep.slice(mark)
     dep.length = mark
 
-    const paradox = cycle.some((p) => orderAt(p)?.type === 'convoy')
+    const convoys = cycle.filter((p) => orderAt(p)?.type === 'convoy')
 
-    for (const p of cycle) {
-      const o = orderAt(p)
-      if (paradox) {
-        if (o?.type === 'move' && isConvoyed(p)) {
-          state.set(p, 'resolved')
-          result.set(p, false)
-        } else {
-          state.set(p, 'unresolved')
-        }
-      } else {
-        // Everybody in the ring moves.
+    if (convoys.length > 0) {
+      /*
+       * A convoy paradox: whether the convoy survives depends on the move the
+       * convoy is carrying. Szykman's rule settles it -- the convoyed move
+       * fails -- and it is a convention rather than a deduction, which is why
+       * it is written down here rather than buried in the arithmetic.
+       *
+       * The armies stalled are the ones those convoy orders name, not merely
+       * the ones that happen to be in the cycle, which in a real paradox is
+       * often none of them. Settling it by restarting rather than by patching
+       * the half-resolved state is what makes it terminate.
+       */
+      const stalled: string[] = []
+      for (const c of convoys) {
+        const o = orderAt(c)
+        if (o?.type === 'convoy') stalled.push(base(o.from))
+      }
+      throw new Paradox(stalled)
+    }
+
+    {
+      // A ring of units all moving into each other. Nobody dislodges
+      // anybody; they all shuffle round, so they all go.
+      // A ring of units all moving into each other. Nobody dislodges
+      // anybody; they all shuffle round, so they all go.
+      for (const p of cycle) {
         state.set(p, 'resolved')
         result.set(p, true)
       }
@@ -324,6 +379,8 @@ export function adjudicate(board: Board, orderList: readonly Order[]): Outcome {
 
   const success = new Map<string, boolean>()
   for (const p of orders.keys()) success.set(p, resolve(p))
+  // An order that was never a legal order did not succeed at anything.
+  for (const p of illegal) success.set(p, false)
 
   const dislodged = new Map<string, Dislodgement>()
   for (const p of board.keys()) {
