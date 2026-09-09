@@ -82,6 +82,32 @@ three places unless something looks. It found the Skagerrak wired to the
 Baltic on the first run — which would have quietly opened a back door into
 the Baltic and made Denmark worthless.
 
+## The published test cases
+
+`tools/datc.py` turns the Diplomacy Adjudicator Test Cases into
+`src/game/datc.json` -- the orders and their annotated outcomes, not the
+document's prose, which is Lucas Kruijswijk's writing. **133 of 136 movement
+cases pass.** They are the reason this adjudicator is worth trusting: they
+found that orders were never validated, that the paradox rule did not
+terminate, and that five of my own hand-written cases rested on a support
+Paris cannot give.
+
+Three cases are excluded rather than failed. 6.A.6, 6.B.10 and 6.B.11 state
+their setup in prose -- "Germany has a fleet in London" -- and the fixture is
+built from order lines, so it cannot carry a unit nobody ordered.
+
+Six are known deviations, written down so they are not rediscovered as
+surprises:
+
+| Case | What it is |
+| --- | --- |
+| 6.A.5, 6.D.8 | The document distinguishes an `invalid` order from an `illegal` one, and the two cases disagree about whether a unit whose move was refused keeps its hold support. Guessing at the distinction cost four passing cases to buy one, so it is left until it can be read properly. |
+| 6.F.22, 6.F.28, 6.F.29 | Second and sixth order paradoxes. The resolver settles them by Szykman's rule and reaches a different answer than the document's. These are positions nobody assembles by accident. |
+| 6.G.19 | Whether an unnecessary fleet in a convoy chain signals intent. The document notes this one depends on which edition of the rules is used. |
+
+Sections H, I and J -- retreating and the winter -- have engine code but no
+harness yet; their cases are shaped differently and need one.
+
 ## Still to build
 
 - the adjudicator, and the DATC cases that prove it
