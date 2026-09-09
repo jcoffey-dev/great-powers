@@ -487,11 +487,17 @@ Elimination is the third way out and needs no button. When your last centre
 goes you are told so and the rest plays out; you can watch it or close the
 tab, and either way the board is still worth seeing.
 
+## Where it lives
+
+<https://games.jcoffey.dev/powers/>, built straight from this repository's
+`main` rather than from a checkout on the server. That is not tidiness: this
+is AGPL, and section 13 asks that players be offered the source of the
+version they are running. Building from the published ref is what makes the
+offer true rather than approximately true.
+
 ## Still to build
 
-- a home on the games hub: a repository, a container, a card and a location
-  block beside the other three
-- a social preview card, which lives with the site rather than here
-- the bots do not talk to the *player* about anything but support: no
-  proposal of a quiet border, no offer of peace, and no way to say "leave
-  Galicia alone this year" in the interface
+- the bots do not talk to the *player* about anything but support. They
+  propose quiet borders and offer peace to each other all game; the only
+  thing you can say to them is "support this move". That is a real gap in a
+  game whose whole subject is what people agree to.
