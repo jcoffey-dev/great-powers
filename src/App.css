@@ -96,11 +96,33 @@ header select {
 
 .label.wet { fill: #63808f; font-weight: 700; }
 
-.unit path {
+.unit {
+  pointer-events: none;
+}
+
+.unit path,
+.unit circle,
+.unit ellipse {
   stroke: #2b2318;
   stroke-width: 3;
   stroke-linejoin: round;
-  pointer-events: none;
+  stroke-linecap: round;
+}
+
+/* Sitting the unit on the ground rather than floating it over the border. */
+.unit .shadow {
+  fill: rgba(43, 35, 24, 0.28);
+  stroke: none;
+}
+
+.unit .mast { stroke-width: 3.5; }
+.unit .brim { stroke-width: 3.5; fill: none; }
+
+/* One flat highlight, no gradients: the same cel rule the whole site uses. */
+.unit .lit {
+  fill: none;
+  stroke: rgba(255, 253, 245, 0.75);
+  stroke-width: 2.6;
 }
 
 /* --- the orders ------------------------------------------------------ */

@@ -40,6 +40,24 @@ import {
  * finish a game rather than shuffle for thirty years.
  */
 
+/**
+ * The year the game stops.
+ *
+ * Diplomacy has no clock of its own: it ends when somebody takes eighteen
+ * centres or when the players agree to stop, and agreeing to stop is a
+ * conversation seven computer powers are not going to have. Left alone they
+ * reach a standoff and hold it -- a game played out with nobody intervening
+ * ran to 2198 with the board still changing hands and nobody near a solo.
+ *
+ * That is not a bug to be tuned away. It is what a table of equally cautious
+ * players does, and it is why real games are called. So the game is called:
+ * eighteen centres wins outright, and if nobody has them by the end of 1912
+ * the survivors draw. Twelve years is a long evening and a real tournament
+ * length, and a draw is a proper ending here rather than a failure to finish
+ * -- it is the commonest way this game actually ends.
+ */
+export const LAST_YEAR = 1912
+
 export type Season = 'spring' | 'autumn'
 export type Phase = 'orders' | 'retreats' | 'builds' | 'over'
 
@@ -57,6 +75,8 @@ export interface Game {
   /** Set while retreats are outstanding. */
   outcome: Outcome | null
   winner: Power | null
+  /** Everybody still standing when the game was called. */
+  drawn: Power[]
   /** Powers with no centres left. They stay on the list, at nothing. */
   out: Power[]
 }
@@ -81,6 +101,7 @@ export function newGame(): Game {
     log: ['Spring 1901. Nobody has said anything yet.'],
     outcome: null,
     winner: null,
+    drawn: [],
     out: [],
   }
 }
@@ -238,6 +259,21 @@ function afterRetreats(g: Game): Game {
   ]
 
   if (winner) return { ...g, own, out, winner, phase: 'over', log }
+
+  if (g.year >= LAST_YEAR) {
+    const drawn = POWERS.filter((p) => !out.includes(p))
+    return {
+      ...g,
+      own,
+      out,
+      drawn,
+      phase: 'over',
+      log: [
+        ...log,
+        `The end of ${g.year}. Nobody has eighteen, so it is a draw between ${drawn.join(', ')}.`,
+      ],
+    }
+  }
 
   const owing = POWERS.some((p) => !out.includes(p) && adjustmentFor(own, g.board, p) !== 0)
   return {

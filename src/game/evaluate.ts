@@ -77,14 +77,35 @@ export function desire(pos: Position, power: Power, province: string): number {
 }
 
 /**
- * A centre of ours with somebody else's unit next to it: the one thing worth
- * standing still for. Not a neutral centre we happen to be sitting on -- that
- * is worth taking, not worth freezing a unit over in the spring.
+ * A centre of ours somebody could actually take: the one thing worth standing
+ * still for.
+ *
+ * Two neighbours, not one. A single unit cannot dislodge another -- it needs
+ * a supporter -- so garrisoning against one is a unit thrown away. That
+ * sounds like a detail and it decided whole games: with one neighbour
+ * counting as a threat, almost every centre on a crowded board is threatened,
+ * almost every unit garrisons, and seven powers stare at each other for two
+ * centuries without a province changing hands.
  */
-export const threatened = (pos: Position, power: Power, province: string): boolean =>
-  PROVINCES[base(province)]!.sc &&
-  pos.own.get(base(province)) === power &&
-  pressured(pos, base(province), power)
+export function threatened(pos: Position, power: Power, province: string): boolean {
+  const id = base(province)
+  if (!PROVINCES[id]!.sc || pos.own.get(id) !== power) return false
+  return neighbours(pos, id, power) >= 2
+}
+
+/** How many of somebody else's units are standing next door. */
+function neighbours(pos: Position, province: string, power: Power): number {
+  let n = 0
+  for (const [, unit] of pos.board) {
+    if (unit.power === power) continue
+    if (canStep(unit, province)) n++
+    else {
+      const coasts = PROVINCES[province]?.coasts
+      if (coasts?.some((c) => canStep(unit, `${province}/${c}`))) n++
+    }
+  }
+  return n
+}
 
 /** Is somebody else's unit standing next door to this centre of ours? */
 function pressured(pos: Position, province: string, power: Power): boolean {

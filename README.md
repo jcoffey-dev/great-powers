@@ -213,15 +213,23 @@ answer on the merits, and what they agree binds that turn and is judged at
 the end of it. Approaches to the human are handed back rather than answered
 for them.
 
-**What it does not do yet is finish.** Played out to 2149 the board is alive
-and nobody has soloed: the powers take the neutrals in the first few years
-and then hold each other off indefinitely. Taking a defended centre needs two
-units on it, and the bots do not reliably arrange that even with deals being
-struck every turn. That is the next piece of work and it is a fact about the
-bots, not the loop, so the test says what the loop guarantees and no more.
+**The game is called at the end of 1912.** Diplomacy has no clock of its own:
+it ends on eighteen centres, or when the players agree to stop -- and
+agreeing to stop is a conversation seven computer powers are never going to
+have. Left alone they reach a standoff and hold it, which is what a table of
+equally cautious players does and is why real games are called.
+
+So: eighteen centres wins outright, and if nobody has them by the end of 1912
+the survivors draw. Twelve years is a long evening and a real tournament
+length, and **the draw is a proper ending here rather than a failure to
+finish** -- it is the commonest way this game actually ends.
+
+Worth saying plainly: seven bots left alone draw. They take centres off each
+other now, which they could not do at all before, but none of them breaks
+away to a solo. Beating six of them is the game.
 
 ## Still to build
 
-- bots that can actually finish a game: coordinated attacks on defended centres
 - the press in front of the player, rather than only between the bots
+- bots strong enough to solo against each other, not only to draw
 - the music, the battle sound, the four endings

@@ -36,48 +36,11 @@ export interface Choice {
   reasoning: string[]
 }
 
-/** Everywhere a unit could legally go, itself included. */
-function options(unit: Unit): string[] {
-  const out: string[] = [base(unit.at)]
-  for (const [id, p] of Object.entries(PROVINCES)) {
-    if (canStep(unit, id)) out.push(id)
-    if (p.coasts) for (const c of p.coasts) if (canStep(unit, `${id}/${c}`)) out.push(`${id}/${c}`)
-  }
-  return out
-}
-
-/**
- * What this power will actually order.
- *
- * A greedy plan, taken in order of what is worth most: claim the best
- * province some unit of mine can reach, then look for a second unit that can
- * reach it too and have that one push instead of wandering off. Two units on
- * one province is how anything defended is ever taken, and a bot that never
- * does it is not playing the game.
- *
- * Agreements are applied afterwards rather than as a constraint on the
- * search, on purpose: the plan has to know what it is giving up before it can
- * decide whether the promise is worth keeping.
- */
 export function chooseOrders(pos: Position, mind: Mind, turn: number): Choice {
   const mine = [...pos.board.entries()].filter(([, u]) => u.power === mind.power)
   const reasoning: string[] = []
-
-  const wants: { at: string; to: string; worth: number }[] = []
-  for (const [at, unit] of mine) {
-    for (const to of options(unit)) {
-      if (base(to) === at) continue
-      // Never shove at your own countryman. A move against a unit of your
-      // own power has no strength at all, so it is not a move, it is two
-      // units wasting a turn on each other.
-      if (pos.board.get(base(to))?.power === mind.power) continue
-      wants.push({ at, to, worth: desire(pos, mind.power, to) })
-    }
-  }
-  wants.sort((a, b) => b.worth - a.worth || a.to.localeCompare(b.to))
-
   const orders = new Map<string, Order>()
-  const claimed = new Set<string>()
+  const spent = new Set<string>()
 
   /*
    * Garrison first. A unit already standing on something worth having claims
@@ -85,42 +48,77 @@ export function chooseOrders(pos: Position, mind: Mind, turn: number): Choice {
    *
    * Without this the bot does something that looks deranged and is a direct
    * consequence of only ever scoring *moves*: with Munich and Berlin both
-   * threatened and only one spare unit, it marched the Munich garrison to
-   * Berlin -- defending one centre by abandoning another of exactly the same
-   * value. A province you are standing in is already yours; the question is
-   * only whether to leave.
+   * threatened and one spare unit, it marched the Munich garrison to Berlin
+   * -- defending one centre by abandoning another of the same value.
    */
   for (const [at] of mine) {
     if (!threatened(pos, mind.power, at)) continue
     orders.set(at, { type: 'hold', at, power: mind.power })
-    claimed.add(at)
+    spent.add(at)
     reasoning.push(`${at} stays where it is`)
   }
 
-  for (const want of wants) {
-    if (orders.has(want.at) || claimed.has(base(want.to))) continue
-    if (want.worth <= 0) continue
+  /*
+   * Then take objectives, not moves.
+   *
+   * This is the difference between a bot that plays and one that shuffles.
+   * Picking each unit's best destination independently means a defended
+   * province is attacked by one unit, bounces, and is attacked again next
+   * year for ever -- which is exactly what seven of these did to each other
+   * until 2149 without anybody taking a single centre off anybody.
+   *
+   * So work the other way round: list what is worth having, work out how many
+   * units it takes, and commit that many or none at all. A province you
+   * cannot take is not worth one unit, and the unit is worth more somewhere
+   * it can actually arrive.
+   */
+  const targets = Object.keys(PROVINCES)
+    .map((id) => ({ id, worth: desire(pos, mind.power, id) }))
+    .filter((t) => t.worth > 0)
+    .sort((a, b) => b.worth - a.worth || a.id.localeCompare(b.id))
 
-    orders.set(want.at, { type: 'move', at: want.at, to: want.to, power: mind.power })
-    claimed.add(base(want.to))
-    reasoning.push(`${want.at} -> ${base(want.to)} (worth ${want.worth})`)
+  for (const target of targets) {
+    if (pos.board.get(target.id)?.power === mind.power) continue
 
-    // Somebody else of mine who could also reach it should push rather than
-    // wander off. Only when it is worth more than a centre: a spare unit
-    // shoving at an empty province is a unit not taking a different one.
-    if (want.worth < 100) continue
-    const second = mine.find(
-      ([at, u]) => !orders.has(at) && at !== want.at && options(u).some((o) => base(o) === base(want.to)),
-    )
-    if (!second) continue
-    orders.set(second[0], {
-      type: 'support',
-      at: second[0],
-      from: want.at,
-      to: want.to,
-      power: mind.power,
-    })
-    reasoning.push(`${second[0]} supports it`)
+    const able = mine
+      .filter(([at]) => !spent.has(at))
+      .filter(([, u]) => canReach(u, target.id))
+      .map(([at, u]) => ({ at, to: aim(u, target.id) }))
+    if (able.length === 0) continue
+
+    const needed = strengthNeeded(pos, mind.power, target.id)
+
+    /*
+     * Not enough for the job. Walking at an empty province anyway is still
+     * worth doing -- the worst that happens is a bounce, and the province
+     * might be free -- but throwing one unit at a garrison is a unit thrown
+     * away, and that one waits for help instead.
+     */
+    if (able.length < needed) {
+      if (pos.board.get(base(target.id))) continue
+      const lone = able[0]!
+      orders.set(lone.at, { type: 'move', at: lone.at, to: lone.to, power: mind.power })
+      spent.add(lone.at)
+      reasoning.push(`${lone.at} -> ${target.id} (worth ${target.worth}, and empty)`)
+      continue
+    }
+
+    const [lead, ...rest] = able
+    orders.set(lead!.at, { type: 'move', at: lead!.at, to: lead!.to, power: mind.power })
+    spent.add(lead!.at)
+    reasoning.push(`${lead!.at} -> ${target.id} (worth ${target.worth}, needs ${needed})`)
+
+    for (const helper of rest.slice(0, needed - 1)) {
+      orders.set(helper.at, {
+        type: 'support',
+        at: helper.at,
+        from: lead!.at,
+        to: lead!.to,
+        power: mind.power,
+      })
+      spent.add(helper.at)
+      reasoning.push(`${helper.at} supports it`)
+    }
   }
 
   // Anything still idle stands where it is.
@@ -134,9 +132,7 @@ export function chooseOrders(pos: Position, mind: Mind, turn: number): Choice {
    * Only this power's orders come back. The validator fills in a hold for
    * every unit on the board -- which is right for adjudication and wrong as
    * an answer to "what does Germany do this turn", since it hands back orders
-   * for all twenty-two units including everybody else's. Nothing caught that
-   * until seven powers were asked at once and England submitted orders for
-   * the whole board.
+   * for all twenty-two units including everybody else's.
    */
   const plan = validate(pos.board, [...orders.values()])
   const ours = [...plan.orders.entries()]
@@ -144,6 +140,55 @@ export function chooseOrders(pos: Position, mind: Mind, turn: number): Choice {
     .map(([, order]) => order)
 
   return { orders: ours, broke, reasoning }
+}
+
+/**
+ * How many units it takes to arrive somewhere.
+ *
+ * One for an empty province nobody else wants. Two if somebody is standing
+ * there, since a unit must be beaten rather than matched. One more again if
+ * a friend of theirs is close enough to prop them up, or if a rival could
+ * reach the same empty province and bounce us out of it.
+ *
+ * It is an estimate and it is meant to be. Being exactly right would mean
+ * knowing everybody's orders, which is the one thing this game never lets
+ * anybody know.
+ */
+function strengthNeeded(pos: Position, power: Power, target: string): number {
+  const holding = pos.board.get(base(target))
+  const rivals = [...pos.board.entries()].filter(
+    ([at, u]) => u.power !== power && base(at) !== base(target) && canReach(u, target),
+  )
+
+  if (!holding) return rivals.length > 0 ? 2 : 1
+
+  /*
+   * Two to beat a unit, and a third only when they have two friends close
+   * enough to prop it up. Assuming one nearby friend means a third unit
+   * needed was the difference between a bot that presses an advantage and one
+   * that never quite attacks: a neighbour almost always has *a* unit
+   * somewhere near, so almost every attack was priced at three, and three
+   * spare units next to the same province is a luxury nobody has.
+   */
+  const friendsOfTheirs = rivals.filter(([, u]) => u.power === holding.power).length
+  return friendsOfTheirs >= 2 ? 3 : 2
+}
+
+/** Can this unit reach that province, by any coast of it? */
+function canReach(unit: Unit, province: string): boolean {
+  if (canStep(unit, base(province))) return true
+  const coasts = PROVINCES[base(province)]?.coasts
+  return coasts !== undefined && coasts.some((c) => canStep(unit, `${base(province)}/${c}`))
+}
+
+/** The destination as the order must name it, coast and all. */
+function aim(unit: Unit, province: string): string {
+  const coasts = PROVINCES[base(province)]?.coasts
+  if (unit.type === 'army' || !coasts) return base(province)
+  const open = coasts
+    .map((c) => `${base(province)}/${c}`)
+    .filter((key) => canStep(unit, key))
+  return open.length === 1 ? open[0]! : base(province)
 }
 
 /**
@@ -370,20 +415,23 @@ export function propose(pos: Position, mind: Mind, turn: number): Overture[] {
 
   const id = (to: Power, what: string) => `${mind.power}-${to}-${turn}-${what}`
 
-  // --- help me take this -------------------------------------------------
-  for (const order of plan.orders) {
-    if (order.type !== 'move') continue
-    const target = base(order.to)
-    if (desire(pos, mind.power, order.to) < 100) continue
-    // Already covered by one of my own units, so there is nothing to ask.
-    if (plan.orders.some((o) => o.type === 'support' && base(o.to) === target)) continue
-
-    const holding = pos.board.get(target)
+  /*
+   * Ask about what you wanted and could not have.
+   *
+   * This used to work from the moves already planned, which had it exactly
+   * backwards once the planner learned not to attack what it cannot take:
+   * a province worth wanting and beyond reach alone is no longer in the plan
+   * at all, so the bot stopped asking for help precisely when it needed
+   * help. What is worth an approach is the target that was skipped.
+   */
+  for (const target of wantedAndUnaffordable(pos, mind)) {
+    const holding = pos.board.get(base(target.id))
     if (!holding || holding.power === mind.power) continue
+    if (plan.orders.some((o) => o.type === 'support' && base(o.to) === target.id)) continue
 
     const helpers = [...pos.board.entries()]
       .filter(([, u]) => u.power !== mind.power && u.power !== holding.power)
-      .filter(([, u]) => canStep(u, order.to))
+      .filter(([, u]) => canReach(u, target.id))
       .sort((a, b) => believe(b[1].power) - believe(a[1].power))
 
     const helper = helpers[0]
@@ -391,7 +439,7 @@ export function propose(pos: Position, mind: Mind, turn: number): Overture[] {
 
     out.push({
       proposal: {
-        id: id(helper[1].power, `sup-${target}`),
+        id: id(helper[1].power, `sup-${target.id}`),
         from: mind.power,
         to: helper[1].power,
         turn,
@@ -399,11 +447,11 @@ export function propose(pos: Position, mind: Mind, turn: number): Overture[] {
           kind: 'support',
           mover: mind.power,
           helper: helper[1].power,
-          from: order.at,
-          to: order.to,
+          from: target.from,
+          to: target.to,
         },
       },
-      says: `Support my ${base(order.at)} into ${target} and it is mine this turn.`,
+      says: `Support my ${base(target.from)} into ${target.id} and it is mine this turn.`,
     })
   }
 
@@ -450,6 +498,31 @@ export function propose(pos: Position, mind: Mind, turn: number): Overture[] {
   }
 
   return out.slice(0, MOUTHFUL)
+}
+
+/**
+ * Provinces this power wants and has not got the units for on its own: the
+ * whole reason to go and talk to somebody.
+ */
+function wantedAndUnaffordable(
+  pos: Position,
+  mind: Mind,
+): { id: string; from: string; to: string; worth: number }[] {
+  const mine = [...pos.board.entries()].filter(([, u]) => u.power === mind.power)
+  const out: { id: string; from: string; to: string; worth: number }[] = []
+
+  for (const id of Object.keys(PROVINCES)) {
+    const worth = desire(pos, mind.power, id)
+    if (worth < 100) continue
+    if (pos.board.get(id)?.power === mind.power) continue
+
+    const able = mine.filter(([, u]) => canReach(u, id))
+    if (able.length === 0) continue
+    if (able.length >= strengthNeeded(pos, mind.power, id)) continue
+
+    out.push({ id, from: able[0]![0], to: aim(able[0]![1], id), worth })
+  }
+  return out.sort((a, b) => b.worth - a.worth)
 }
 
 /** Powers whose units are within reach of anything of ours. */

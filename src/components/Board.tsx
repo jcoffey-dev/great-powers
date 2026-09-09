@@ -144,18 +144,59 @@ export function Board({
         const p = CENTRES[unit.at] ?? CENTRES[base(unit.at)] ?? CENTRES[at]!
         return (
           <g className="unit" key={at} transform={`translate(${p.x} ${p.y})`}>
+            <ellipse className="shadow" cx="0" cy="13" rx="17" ry="4" />
             {unit.type === 'army' ? (
-              <path d="M-15 9 L-15 -3 L0 -13 L15 -3 L15 9 Z" fill={COLOURS[unit.power]} />
+              <Soldier colour={COLOURS[unit.power]} />
             ) : (
-              <path
-                d="M-17 7 L17 7 L9 -1 L3 -1 L3 -13 L-4 -1 L-17 -1 Z"
-                fill={COLOURS[unit.power]}
-              />
+              <Ship colour={COLOURS[unit.power]} />
             )}
           </g>
         )
       })}
     </svg>
+  )
+}
+
+/**
+ * An army: a soldier from the shoulders up, in a helmet.
+ *
+ * A person reads as troops at any size, which two stacked rectangles never
+ * did -- the first pass drew a blockhouse and a wedge and at map scale they
+ * were two similar smudges in the same colour. The silhouette has to do the
+ * work, so the helmet is wider than the head and the shoulders are square.
+ */
+function Soldier({ colour }: { colour: string }) {
+  return (
+    <g>
+      <path className="body" d="M-13 13 L-13 3 C-13 -3 -7 -6 0 -6 C7 -6 13 -3 13 3 L13 13 Z" fill={colour} />
+      <circle className="head" cx="0" cy="-9" r="6.5" fill={colour} />
+      {/* The brim is what makes it a helmet rather than a head. */}
+      <path className="helmet" d="M-10 -11 C-10 -18 10 -18 10 -11 Z" fill={colour} />
+      <path className="brim" d="M-11.5 -10.5 L11.5 -10.5" />
+      <path className="lit" d="M-8 12 L-8 3 C-8 -1 -5 -3 -2 -3.5" />
+    </g>
+  )
+}
+
+/**
+ * A fleet: a hull, a mast and a sail.
+ *
+ * The sail is the tell. A hull on its own is a wedge and a wedge is whatever
+ * you already thought it was; a triangle above a curve is a boat before
+ * anybody has decided to look.
+ */
+function Ship({ colour }: { colour: string }) {
+  return (
+    <g>
+      <path className="sail" d="M1.5 -17 L14 1 L1.5 1 Z" fill={colour} />
+      <path className="mast" d="M0 2 L0 -17" />
+      <path
+        className="hull"
+        d="M-16 2 L16 2 C15 9 11 13 6 13 L-6 13 C-11 13 -15 9 -16 2 Z"
+        fill={colour}
+      />
+      <path className="lit" d="M-12 4 C-11 8 -8 10 -4 10.5" />
+    </g>
   )
 }
 
