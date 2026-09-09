@@ -45,52 +45,52 @@ header p { margin: 2px 0 0; font-size: 0.9rem; }
 .board {
   width: 100%;
   height: 100%;
-  border: 3px solid #241a10;
-  border-radius: 16px;
-  background: #6ea3c9;
+  border: 2px solid #2b2318;
+  border-radius: 8px;
+  background: #d3e6f2;
 }
 
-.ocean { fill: #4a7fa8; }
+.ocean { fill: #d3e6f2; }
 
 .region {
-  stroke: #241a10;
-  stroke-width: 2.5;
+  stroke: #2b2318;
+  stroke-width: 2;
   stroke-linejoin: round;
   cursor: pointer;
 }
 
-/* Open water gets a lighter line: a coastline is a border, the middle of the
-   Atlantic is a convention. */
-.region.sea { stroke-opacity: 0.3; stroke-width: 2; }
+/* A coastline is a real border; the middle of the Atlantic is a convention. */
+.region.sea { stroke-opacity: 0.32; stroke-width: 1.6; }
 
-.region.picked { stroke: #ffd479; stroke-width: 5; }
+.region.picked { stroke: #b8341f; stroke-width: 7; }
 
 /* Where the selected unit may actually go, taken from the rules rather than
    from which shapes happen to touch. */
-.region.open { stroke: #fff6e0; stroke-width: 4; stroke-dasharray: 7 5; }
+.region.open { stroke: #b8341f; stroke-width: 5; stroke-dasharray: 12 9; }
 
 .pip {
-  fill: #fff6e0;
-  stroke: #241a10;
-  stroke-width: 1.8;
+  fill: #fffaf0;
+  stroke: #2b2318;
+  stroke-width: 2.4;
   pointer-events: none;
 }
 
 .label {
-  font-size: 11.5px;
+  font-size: 21px;
   font-weight: 800;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.03em;
   text-anchor: middle;
   pointer-events: none;
-  fill: #241a10;
+  fill: #2b2318;
 }
 
-.label.wet { fill: #dceaf5; }
+.label.wet { fill: #63808f; font-weight: 700; }
 
 .unit path {
-  stroke: #241a10;
-  stroke-width: 2.5;
+  stroke: #2b2318;
+  stroke-width: 3;
   stroke-linejoin: round;
+  pointer-events: none;
 }
 
 /* --- the side ------------------------------------------------------- */

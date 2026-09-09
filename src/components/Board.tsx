@@ -1,39 +1,34 @@
 import { PROVINCES, POWERS, base, type Power } from '../game/map'
-import { CENTRES, bounds, cell, path, radius, reachableFrom } from '../game/layout'
+import { CENTRES, SHAPES, SHIFT, VIEW_BOX, reachableFrom } from '../game/layout'
 import type { Board as Units } from '../game/orders'
 import type { Ownership } from '../game/turn'
 
 /**
  * The board.
  *
- * Territories, drawn from coordinates I placed by hand and divided by the
- * halfway line between them. Nothing here is a picture of anybody's map.
- * Flat fills, one heavy outline, no gradients: the same cel style the other
- * three games use.
+ * The outlines are the standard map's; everything drawn on them is this
+ * game's. Flat fills and one dark line, a pale sea, and each power in a
+ * colour you can tell from the others at a glance while somebody is arguing
+ * with you about Galicia.
  *
- * The regions are what the map looks like; they are not what the rules are
- * read from. A Voronoi cell cannot reproduce every adjacency in this game --
- * provinces interleave, and the Adriatic borders Venice with Trieste sitting
- * between their centres -- so clicking a province lights up exactly where its
- * unit may legally go, taken from the adjacency graph itself. The picture is
- * a picture; the rules answer for themselves when asked.
+ * Clicking a province lights up exactly where its unit may legally go, taken
+ * from the rules rather than from which shapes happen to share an edge.
  */
 
 export const COLOURS: Record<Power, string> = {
-  austria: '#e4572e',
-  england: '#3b5bdb',
-  france: '#4dabf7',
-  germany: '#4b545e',
-  italy: '#37b24d',
-  russia: '#9775fa',
-  turkey: '#f2a03d',
+  austria: '#d4736c',
+  england: '#e7a8c8',
+  france: '#89b4dd',
+  germany: '#9d9d9d',
+  italy: '#93cc9e',
+  russia: '#b08fc4',
+  turkey: '#e8dc8c',
 }
 
-const SEA = '#5b93bd'
-const SEA_DEEP = '#4a7fa8'
-const LAND = '#ded0ab'
-const LAND_SC = '#efe3c2'
-const OUTLINE = '#241a10'
+const SEA = '#d3e6f2'
+const LAND = '#e6d8ba'
+const LAND_SC = '#f3ead4'
+const INK = '#2b2318'
 
 export function Board({
   units,
@@ -46,54 +41,45 @@ export function Board({
   selected?: string | null
   onPick?: (province: string) => void
 }) {
-  const box = bounds(10)
   const ids = Object.keys(PROVINCES)
-
   const standing = selected ? units.get(selected) : undefined
   const reachable = new Set(standing ? reachableFrom(standing) : [])
 
+  const shade = (id: string) => {
+    const p = PROVINCES[id]!
+    if (p.terrain === 'sea') return SEA
+    const owner = own.get(id)
+    return owner ? COLOURS[owner] : p.sc ? LAND_SC : LAND
+  }
+
   return (
-    <svg
-      className="board"
-      viewBox={`${box.x} ${box.y} ${box.w} ${box.h}`}
-      role="img"
-      aria-label="The board: seventy-five provinces, coloured by who holds them."
-    >
-      <rect className="ocean" x={box.x} y={box.y} width={box.w} height={box.h} />
+    <svg className="board" viewBox={VIEW_BOX} role="img" aria-label="Europe in 1901.">
+      <rect className="ocean" x="0" y="0" width="100%" height="100%" />
 
-      {/* Territories. Sea first so the coastlines sit on top of the water. */}
-      {ids
-        .sort((a, b) => Number(PROVINCES[b]!.terrain === 'sea') - Number(PROVINCES[a]!.terrain === 'sea'))
-        .map((id) => {
-          const p = PROVINCES[id]!
-          const owner = own.get(id)
-          const fill =
-            p.terrain === 'sea' ? (p.sc ? SEA : SEA_DEEP) : owner ? COLOURS[owner] : p.sc ? LAND_SC : LAND
+      <g transform={SHIFT}>
+        {ids.map((id) => (
+          <path
+            key={id}
+            className={`region ${PROVINCES[id]!.terrain === 'sea' ? 'sea' : 'land'} ${
+              selected === id ? 'picked' : reachable.has(id) ? 'open' : ''
+            }`}
+            d={SHAPES[id] ?? ''}
+            fill={shade(id)}
+            onClick={() => onPick?.(id)}
+          />
+        ))}
+      </g>
 
-          return (
-            <path
-              key={id}
-              className={`region ${p.terrain} ${p.sc ? 'centre' : ''} ${
-                selected === id ? 'picked' : reachable.has(id) ? 'open' : ''
-              }`}
-              d={path(cell(id))}
-              fill={fill}
-              onClick={() => onPick?.(id)}
-            />
-          )
-        })}
-
-      {/* Supply centres get a mark of their own: they are the only thing
-          anybody is actually counting. */}
+      {/* A supply centre is the only thing anybody is counting. */}
       {ids
         .filter((id) => PROVINCES[id]!.sc)
         .map((id) => (
           <circle
             className="pip"
-            key={`pip-${id}`}
+            key={`p-${id}`}
             cx={CENTRES[id]!.x}
-            cy={CENTRES[id]!.y - radius(id) * 0.55}
-            r={4.4}
+            cy={CENTRES[id]!.y - 26}
+            r={7}
           />
         ))}
 
@@ -102,21 +88,23 @@ export function Board({
           className={`label ${PROVINCES[id]!.terrain === 'sea' ? 'wet' : ''}`}
           key={`t-${id}`}
           x={CENTRES[id]!.x}
-          y={CENTRES[id]!.y + 4}
+          y={CENTRES[id]!.y - 38}
         >
           {id.toUpperCase()}
         </text>
       ))}
 
-      {/* Units last: they are what you are actually looking at. */}
       {[...units.entries()].map(([at, unit]) => {
-        const p = CENTRES[base(unit.at)] ?? CENTRES[at]!
+        const p = CENTRES[unit.at] ?? CENTRES[base(unit.at)] ?? CENTRES[at]!
         return (
-          <g className="unit" key={at} transform={`translate(${p.x} ${p.y + 17})`}>
+          <g className="unit" key={at} transform={`translate(${p.x} ${p.y})`}>
             {unit.type === 'army' ? (
-              <path d="M-11 6 L-11 -3 L0 -9 L11 -3 L11 6 Z" fill={COLOURS[unit.power]} />
+              <path d="M-15 9 L-15 -3 L0 -13 L15 -3 L15 9 Z" fill={COLOURS[unit.power]} />
             ) : (
-              <path d="M-12 4 L12 4 L7 -2 L2 -2 L2 -9 L-3 -2 L-12 -2 Z" fill={COLOURS[unit.power]} />
+              <path
+                d="M-17 7 L17 7 L9 -1 L3 -1 L3 -13 L-4 -1 L-17 -1 Z"
+                fill={COLOURS[unit.power]}
+              />
             )}
           </g>
         )
@@ -135,4 +123,4 @@ export const POWER_NAMES: Record<Power, string> = {
   turkey: 'Turkey',
 }
 
-export { POWERS, OUTLINE }
+export { POWERS, INK }

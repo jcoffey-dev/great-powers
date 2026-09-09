@@ -35,29 +35,25 @@ would not be.
 
 ## The look and the sound
 
-**Cartoony.** Flat cel fills and one heavy outline, the same house style the
-other three games use, on a map generated from the topology in
-`src/game/map.ts` rather than traced from anybody's board. The coordinates in
-`src/game/layout.ts` are placed by hand -- roughly where each province falls
-in Europe -- and everything else is drawn from those and from the adjacency
-rules.
+**The map is the standard board's geometry, under the same licence as this
+project.** The outlines come from the diplomacy engine at
+<https://github.com/diplomacy/diplomacy>, which is AGPL-3.0, extracted by
+`tools/map.py` into `src/game/board.json`. Every colour and every mark drawn
+on it is ours; see [NOTICE.md](NOTICE.md).
 
-**Territories, with the rules kept out of the picture.** The regions are
-Voronoi cells -- every point belonging to the nearest province -- which
-divides the board with no gaps and no overlaps and looks like a board.
+Three earlier attempts drew it from scratch and all three were worse.
+Dividing the plane by nearest province gives a tidy board that looks nothing
+like Europe. Drawing the adjacency graph gives something unimpeachable about
+the rules and not a map at all -- circles joined by lines. Fifty-six polygons
+placed by eye gives fifty-six islands. Drawing Europe accurately is real work,
+somebody did it properly, and they published it under a licence that invites
+exactly this.
 
-What it cannot do is reproduce every adjacency in the rules, because
-provinces here interleave: the Adriatic borders Venice with Trieste sitting
-between their centres, and the Atlantic borders North Africa round the
-outside of Spain. Convex cells cannot say that.
-
-The wrong lesson to draw from that -- and the one I drew first -- is to give
-up on regions and draw the adjacency graph instead. It is unimpeachable and
-it is not a map; it is circles joined by lines. The right answer is to stop
-asking the picture to carry the rules. **Click a province and exactly the
-provinces its unit may legally reach light up**, taken from the adjacency
-graph itself. The picture is a picture, and the rules answer for themselves
-when they are asked.
+**Clicking still answers with the rules, not the picture.** A shape cannot say
+that a fleet on Spain's north coast may not enter the Gulf of Lyon while one
+on the south coast may, because both coasts are the same shape. So selecting a
+province lights up exactly where its unit may legally go, taken from the
+adjacency graph.
 
 **It gets the whole screen.** The other three games live in a four-by-three
 cabinet because the machines they are rebuilding did. This one is not
