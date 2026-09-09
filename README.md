@@ -178,6 +178,25 @@ refused to make that offer would be playing a politer game than this one. It
 will not, however, ask the power it is attacking to *help*, or offer it peace
 while the orders say otherwise.
 
+## Giving orders
+
+Clicks on the board, because that is where the question is. Select a unit,
+pick a verb, and the provinces the next click will accept light up -- so
+nobody writes a move the rules were never going to allow, and nobody has to
+learn a notation to find that out.
+
+Everything offered comes from the rules rather than from the map, which is
+the same split the map itself is built on. A fleet on the north coast of
+Spain is drawn identically to one on the south coast and can go to entirely
+different places; no shape can express that, and the highlight has to.
+
+Orders are drawn where they are given: an arrow to where a unit is going, a
+dashed line to what a support is holding up, a ring round a unit that is
+staying. The list beside the board says the same thing in the rules' own
+words, because an arrow cannot tell you that the support you meant for Vienna
+is being given to Budapest. Anything the rules will not take is struck
+through in the list as it is written, rather than after the turn.
+
 ## Still to build
 
 - the map, the orders, the music, the battle sound, the four endings

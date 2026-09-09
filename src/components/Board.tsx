@@ -1,6 +1,6 @@
 import { PROVINCES, POWERS, base, type Power } from '../game/map'
 import { CENTRES, SHAPES, SHIFT, VIEW_BOX, reachableFrom } from '../game/layout'
-import type { Board as Units } from '../game/orders'
+import type { Board as Units, Order } from '../game/orders'
 import type { Ownership } from '../game/turn'
 
 /**
@@ -33,17 +33,24 @@ const INK = '#2b2318'
 export function Board({
   units,
   own,
+  orders,
   selected,
+  offering,
   onPick,
 }: {
   units: Units
   own: Ownership
+  /** Orders written so far, drawn on the board as they are given. */
+  orders?: ReadonlyMap<string, Order>
   selected?: string | null
+  /** Provinces the current step will accept a click on. */
+  offering?: ReadonlySet<string>
   onPick?: (province: string) => void
 }) {
   const ids = Object.keys(PROVINCES)
   const standing = selected ? units.get(selected) : undefined
-  const reachable = new Set(standing ? reachableFrom(standing) : [])
+  const reachable = offering ?? new Set(standing ? reachableFrom(standing) : [])
+  const at = (id: string) => CENTRES[id] ?? CENTRES[base(id)]!
 
   const shade = (id: string) => {
     const p = PROVINCES[id]!
@@ -93,6 +100,45 @@ export function Board({
           {id.toUpperCase()}
         </text>
       ))}
+
+      {/*
+        The orders, drawn where they are being given. A move is an arrow to
+        where it is going; a support is a dashed line to what it is holding
+        up; a hold is a ring round the unit. Seeing them on the board is the
+        difference between checking your orders and re-reading a list.
+      */}
+      <g className="orders">
+        <defs>
+          <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5"
+            markerHeight="5" orient="auto-start-reverse">
+            <path d="M0 0 L10 5 L0 10 z" />
+          </marker>
+        </defs>
+        {[...(orders?.values() ?? [])].map((o) => {
+          const from = at(o.at)
+          if (o.type === 'hold') {
+            return <circle className="o-hold" key={o.at} cx={from.x} cy={from.y} r={24} />
+          }
+          if (o.type === 'move') {
+            const to = at(o.to)
+            return (
+              <line className="o-move" key={o.at} x1={from.x} y1={from.y} x2={to.x} y2={to.y} />
+            )
+          }
+          // A support props something up somewhere else: draw it to the
+          // province being held rather than to the unit doing the holding.
+          const target = at(o.type === 'support' ? o.to : o.to)
+          const via = at(o.from)
+          return (
+            <g className={o.type === 'support' ? 'o-support' : 'o-convoy'} key={o.at}>
+              <line x1={from.x} y1={from.y} x2={via.x} y2={via.y} />
+              {base(o.from) !== base(o.to) && (
+                <line x1={via.x} y1={via.y} x2={target.x} y2={target.y} />
+              )}
+            </g>
+          )
+        })}
+      </g>
 
       {[...units.entries()].map(([at, unit]) => {
         const p = CENTRES[unit.at] ?? CENTRES[base(unit.at)] ?? CENTRES[at]!

@@ -31,6 +31,16 @@ h1 {
 
 header p { margin: 2px 0 0; font-size: 0.9rem; }
 
+header select {
+  font: inherit;
+  font-weight: 700;
+  color: #f2e9d8;
+  background: #22304a;
+  border: 2px solid #2b2318;
+  border-radius: 6px;
+  padding: 1px 6px;
+}
+
 .dim { color: #a3b3c9; }
 
 .map-wrap {
@@ -92,6 +102,96 @@ header p { margin: 2px 0 0; font-size: 0.9rem; }
   stroke-linejoin: round;
   pointer-events: none;
 }
+
+/* --- the orders ------------------------------------------------------ */
+
+.orders .o-move {
+  stroke: #1c1208;
+  stroke-width: 6;
+  marker-end: url(#arrow);
+}
+
+.orders .o-hold {
+  fill: none;
+  stroke: #1c1208;
+  stroke-width: 5;
+}
+
+.orders .o-support line {
+  stroke: #1c1208;
+  stroke-width: 5;
+  stroke-dasharray: 16 11;
+}
+
+.orders .o-convoy line {
+  stroke: #2f6f8f;
+  stroke-width: 5;
+  stroke-dasharray: 4 12;
+  stroke-linecap: round;
+}
+
+.orders marker path { fill: #1c1208; }
+
+.orders-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+}
+
+.orders-panel h2 { margin: 0; font-size: 0.98rem; }
+
+.verbs { display: flex; flex-wrap: wrap; gap: 4px; }
+
+.verbs button,
+.submit {
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #f2e9d8;
+  background: #22304a;
+  border: 2px solid #2b2318;
+  border-radius: 7px;
+  padding: 3px 10px;
+  cursor: pointer;
+}
+
+.verbs button.on { background: #b8341f; }
+
+.hint { margin: 0; font-size: 0.82rem; line-height: 1.4; }
+
+.written {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  overflow-y: auto;
+  min-height: 0;
+  font-size: 0.84rem;
+}
+
+.written li { display: flex; align-items: center; gap: 6px; }
+
+/* An order the rules will not take, said so while it is being written. */
+.written li.bad span { color: #ff9a8b; text-decoration: line-through; }
+
+.written .drop {
+  margin-left: auto;
+  font: inherit;
+  color: #a3b3c9;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0 3px;
+}
+
+.written .drop:hover { color: #ff9a8b; }
+
+.submit { margin-top: auto; align-self: flex-start; background: #2f5d3a; }
+
+.powers li.me { color: #ffd479; }
 
 /* --- the side ------------------------------------------------------- */
 
