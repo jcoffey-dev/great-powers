@@ -179,23 +179,30 @@ function Soldier({ colour }: { colour: string }) {
 }
 
 /**
- * A fleet: a hull, a mast and a sail.
+ * A fleet: a warship, which in 1901 means a pre-dreadnought.
  *
- * The sail is the tell. A hull on its own is a wedge and a wedge is whatever
- * you already thought it was; a triangle above a curve is a boat before
- * anybody has decided to look.
+ * The first pass drew a sailing boat and it was wrong by fifty years -- these
+ * are the fleets of the naval race, coal-fired and armoured. The tell is not
+ * the hull, which is a wedge like any other; it is the pair of raked funnels
+ * over a hull that is long and low. A mast and a turret finish it, and at map
+ * scale the funnels are what a player actually sees.
  */
 function Ship({ colour }: { colour: string }) {
   return (
     <g>
-      <path className="sail" d="M1.5 -17 L14 1 L1.5 1 Z" fill={colour} />
-      <path className="mast" d="M0 2 L0 -17" />
+      {/* Funnels first, so the hull's outline cuts across their feet. */}
+      <path className="funnel" d="M-7 -3 L-5.5 -13 L-1.5 -13 L-3 -3 Z" fill={colour} />
+      <path className="funnel" d="M1 -3 L2.5 -13 L6.5 -13 L5 -3 Z" fill={colour} />
+      <path className="mast" d="M-11 -1 L-11 -14" />
+      <path className="deck" d="M-13 -3 L9 -3 L11 2 L-15 2 Z" fill={colour} />
+      {/* The forward turret: a warship points at things. */}
+      <path className="turret" d="M11 -3 L16 -3 L17 1 L11 1 Z" fill={colour} />
       <path
         className="hull"
-        d="M-16 2 L16 2 C15 9 11 13 6 13 L-6 13 C-11 13 -15 9 -16 2 Z"
+        d="M-18 1 L18 1 C17 8 13 12 8 12 L-9 12 C-14 12 -17 8 -18 1 Z"
         fill={colour}
       />
-      <path className="lit" d="M-12 4 C-11 8 -8 10 -4 10.5" />
+      <path className="lit" d="M-13 3.5 C-12 8 -9 10 -5 10.5" />
     </g>
   )
 }
