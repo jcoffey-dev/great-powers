@@ -1,0 +1,124 @@
+/* The arcade look for the page before the table, to match the cabinets on
+   games.jcoffey.dev. Everything is scoped to .landing, so the table itself
+   keeps its own look. --neon is this game's marquee color on the arcade floor. */
+@font-face {
+  font-family: "Press Start 2P";
+  src: url("./assets/fonts/PressStart2P-Regular.woff2") format("woff2");
+  font-display: swap;
+}
+
+div.landing {
+  --neon: #4d8dff;
+  --pixel: "Press Start 2P", ui-monospace, monospace;
+  --cyan: #22e5ff;
+  --edge: #2a1d4d;
+}
+/* The room: dark, lit from above in pink and cyan, and a tube over it all. */
+div.landing::before,
+div.landing::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+}
+div.landing::before {
+  z-index: -1;
+  background:
+    radial-gradient(60% 40% at 50% 0%, rgba(255, 43, 214, 0.18), transparent 70%),
+    radial-gradient(50% 35% at 85% 15%, rgba(34, 229, 255, 0.1), transparent 70%),
+    #07040f;
+}
+div.landing::after {
+  z-index: 10;
+  background:
+    repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.16) 0 1px, transparent 1px 3px),
+    radial-gradient(120% 90% at 50% 50%, transparent 62%, rgba(0, 0, 0, 0.5) 100%);
+}
+
+/* ‹ ARCADE, back to the floor, and the credit counter. */
+div.landing .arcade-bar {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 28px;
+  font-family: var(--pixel);
+  font-size: 0.62rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+div.landing .arcade-bar a { color: var(--cyan); text-decoration: none; }
+div.landing .arcade-bar a:hover { color: #ffd23d; }
+div.landing .arcade-bar span { color: #ff3b3b; }
+
+div.landing h1 {
+  font-family: var(--pixel);
+  font-weight: 400;
+  font-size: clamp(1.5rem, 5.5vw, 3rem);
+  line-height: 1.25;
+  margin: 0 0 12px;
+  color: #fff;
+  text-shadow:
+    0 0 6px #fff,
+    0 0 16px var(--neon),
+    0 0 36px var(--neon),
+    5px 5px 0 #24103a;
+  animation: arcade-flicker 7s infinite;
+}
+div.landing h2 {
+  font-family: var(--pixel);
+  font-weight: 400;
+  font-size: 0.68rem;
+  line-height: 1.7;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--neon);
+  text-shadow: 0 0 8px color-mix(in srgb, var(--neon) 60%, transparent);
+}
+div.landing a { color: var(--cyan); }
+
+/* The pickers, as rows of arcade buttons. */
+div.landing .choose li button {
+  font-family: var(--pixel);
+  font-size: 0.55rem;
+  text-transform: uppercase;
+  border-radius: 0;
+  border: 2px solid var(--edge);
+  background: #0b0716;
+  color: #e9e4ff;
+}
+div.landing .choose li button.on {
+  background: #0b0716;
+  border-color: var(--neon);
+  box-shadow: 0 0 14px color-mix(in srgb, var(--neon) 55%, transparent);
+}
+
+/* 1P START. */
+div.landing .choose .start {
+  font-family: var(--pixel);
+  font-weight: 400;
+  font-size: 0.85rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #120a22;
+  background: var(--neon);
+  border-radius: 0;
+  padding: 14px 22px;
+  box-shadow: 0 0 22px color-mix(in srgb, var(--neon) 60%, transparent), inset 0 -4px 0 rgba(0, 0, 0, 0.25);
+}
+div.landing .choose .start::before { content: "▶ "; }
+div.landing .choose .start:hover,
+div.landing .choose .start:focus-visible {
+  box-shadow: 0 0 36px color-mix(in srgb, var(--neon) 85%, transparent), inset 0 -4px 0 rgba(0, 0, 0, 0.25);
+}
+div.landing .choose .start:hover::before { animation: arcade-blink 0.6s steps(1) infinite; }
+
+div.landing footer { border-top: 1px dashed var(--edge); }
+
+@keyframes arcade-blink { 50% { opacity: 0; } }
+@keyframes arcade-flicker {
+  0%, 18%, 22%, 25%, 53%, 57%, 100% { opacity: 1; }
+  20%, 24%, 55% { opacity: 0.6; }
+}
+@media (prefers-reduced-motion: reduce) {
+  div.landing h1, .landing .choose .start:hover::before { animation: none; }
+}

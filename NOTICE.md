@@ -84,3 +84,10 @@ WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
 PARTICULAR PURPOSE. See the GNU Affero General Public License for more details.
 
 *None of the above is legal advice.*
+
+## The arcade font
+
+The headings and buttons on the landing page are set in **Press Start 2P**,
+in `src/assets/fonts/`: Copyright 2012 The Press Start 2P Project Authors,
+under the SIL Open Font License 1.1, whose text is beside it as
+`OFL-PressStart2P.txt`.
