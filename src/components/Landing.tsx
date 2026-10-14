@@ -1,6 +1,7 @@
 import { COLOURS, POWER_NAMES } from './Board'
 import { LAST_YEAR } from '../game/game'
 import { POWERS, SOLO, type Power } from '../game/map'
+import '../arcade.css'
 
 /**
  * The page before the map.
@@ -25,6 +26,10 @@ export function Landing({
 }) {
   return (
     <div className="landing">
+      <nav className="arcade-bar" aria-label="Arcade">
+        <a href="https://games.jcoffey.dev/">‹ Arcade</a>
+        <span aria-hidden="true">Credit free</span>
+      </nav>
       <header>
         <h1>Great Powers</h1>
         <p className="tagline">
